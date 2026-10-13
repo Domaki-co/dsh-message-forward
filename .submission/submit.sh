@@ -135,10 +135,10 @@ console.log('  entry validates clean');
 git add "data/plugins/$(basename "$ENTRY")"
 git commit -q -m "Add Domaki-co/dsh-message-forward
 
-WeChat-style cross-session forwarding for DSH: forward one model reply, a
-user message, or a multi-selected batch of messages and images into another
-session, with three delivery modes (silent send / fill draft / send-and-jump),
-code-block-only extraction, and prompt templates."
+Cross-session message forwarding for DSH: extract one model reply, a user
+message, or a multi-selected batch of messages and images from one session
+and deliver it into another, with three delivery modes (silent send / fill
+draft / send-and-jump), code-block-only extraction, and prompt templates."
 
 git push -u origin "$BRANCH" 2>&1 | tail -3
 
@@ -160,10 +160,10 @@ cat <<'BODY'
   Body:
     Adds one entry: `data/plugins/Domaki-co__dsh-message-forward.yml`.
 
-    WeChat-style cross-session forwarding for DSH: forward one model reply, a
-    user message, or a multi-selected batch of messages and images into another
-    session, with three delivery modes (silent send / fill draft /
-    send-and-jump), code-block-only extraction, and prompt templates.
+    Cross-session message forwarding for DSH: extract one model reply, a user
+    message, or a multi-selected batch of messages and images from one session
+    and deliver it into another, with three delivery modes (silent send / fill
+    draft / send-and-jump), code-block-only extraction, and prompt templates.
 
     `dsh.bundle.patch` -> `cordis.patch.yml`; `dsh.client.inject` declares the
     five host UI packages it consumes. `engines.dsh` and every peer range carry
