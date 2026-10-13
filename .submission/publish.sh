@@ -31,7 +31,7 @@ if gh repo view "$REPO" >/dev/null 2>&1; then
   echo "exists already: $REPO"
 else
   gh repo create "$REPO" --public \
-    --description "WeChat-style message forwarding for DeepSeek Harness: forward a message, a multi-selected batch, or just the code blocks between sessions."
+    --description "WeChat-style message forwarding for DeepSeek Harness: forward one model reply, a user message, or a multi-selected batch of messages and images into another session — silent send, fill draft, or send-and-jump, plus code-block-only extraction and prompt templates."
   echo "created: $REPO"
 fi
 
