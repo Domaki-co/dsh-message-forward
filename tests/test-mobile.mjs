@@ -121,9 +121,31 @@ if (footerRule) {
   ok("footer carries the same 24px gutter as header/body",
     /padding:\s*0 24px/.test(footerRule[1]),
     footerRule[1].trim().replace(/\s+/g, " "));
+  // Regression: without box-sizing the 100% width PLUS 48px padding overflows the
+  // dialog by 48px, and the dialog's overflow:hidden eats it on the right — the
+  // left gutter looks right while the last button sits flush against the edge.
+  ok("footer is border-box so its 100% width absorbs the padding",
+    /box-sizing:\s*border-box/.test(footerRule[1]),
+    "width:100% + padding:0 24px in content-box = 48px overflow");
 }
 ok("footer action group can wrap on its own",
   /\.dsh-mf-footer-actions\s*\{[^}]*flex-wrap:\s*wrap/s.test(css));
+ok("footer action group can shrink below its content width",
+  /\.dsh-mf-footer-actions\s*\{[^}]*min-width:\s*0/s.test(css));
+ok("the modal footer wrapper can shrink too",
+  /\.dsh-mf-modal-footer\s*\{[^}]*min-width:\s*0/s.test(css));
+
+// Regression: the dialog is a flex item of .dsh-mf-modal-root. Its default
+// min-width:auto floors it at min-content width, which overrode
+// width:min(720px,100%) and stretched the card past the viewport.
+const wideDialog = css.match(/\.dsh-mf-dialog\.dsh-mf-dialog\s*\{([^}]*)\}/);
+ok("wide dialog rule exists", !!wideDialog);
+if (wideDialog) {
+  ok("wide dialog keeps its 720px cap", /width:\s*min\(720px,\s*100%\)/.test(wideDialog[1]), wideDialog[1].trim());
+  ok("wide dialog opts out of the flex min-width:auto floor",
+    /min-width:\s*0/.test(wideDialog[1]),
+    "without min-width:0 the flex item ignores width:min(720px,100%)");
+}
 
 // ---------------------------------------------------------------------------
 // 4. Touch targets: 44px floor under the mobile breakpoint.
