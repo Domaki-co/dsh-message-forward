@@ -138,7 +138,7 @@ git commit -q -m "Add Domaki-co/dsh-message-forward
 Cross-session message forwarding for DSH: extract one model reply, a user
 message, or a multi-selected batch of messages and images from one session
 and deliver it into another, with three delivery modes (silent send / fill
-draft / send-and-jump), code-block-only extraction, and prompt templates."
+draft / send-and-jump) and prompt templates."
 
 git push -u origin "$BRANCH" 2>&1 | tail -3
 
@@ -163,12 +163,12 @@ cat <<'BODY'
     Cross-session message forwarding for DSH: extract one model reply, a user
     message, or a multi-selected batch of messages and images from one session
     and deliver it into another, with three delivery modes (silent send / fill
-    draft / send-and-jump), code-block-only extraction, and prompt templates.
+    draft / send-and-jump) and prompt templates.
 
     `dsh.bundle.patch` -> `cordis.patch.yml`; `dsh.client.inject` declares the
     five host UI packages it consumes. `engines.dsh` and every peer range carry
     an explicit prerelease branch, so 0.2.0-rc.* and 0.2.1-alpha.* both resolve
-    without ERESOLVE. 119 assertions pass across four suites.
+    without ERESOLVE. 364 assertions pass across eight suites.
 BODY
 
 echo
