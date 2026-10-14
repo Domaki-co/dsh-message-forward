@@ -187,6 +187,36 @@ if (mobile) {
   ok("mobile bar respects safe-area-inset-bottom",
     /env\(safe-area-inset-bottom/.test(bar), bar.trim().split("\n").filter((l) => l.includes("bottom")).join(" "));
 
+  // The five bar controls (count / select-all / clear / exit / merge) used to
+  // free-wrap into four stacked rows on a phone, eating a quarter of the chat area.
+  // They must land on exactly two rows, which means a two-column grid.
+  ok("mobile bar lays its five controls out as a two-column grid",
+    /display:\s*grid/.test(bar) && /grid-template-columns:\s*1fr 1fr/.test(bar),
+    bar.trim().split("\n").filter((l) => /display|grid-template/.test(l)).join(" "));
+  // A fixed element shrink-to-fits, so without an explicit width the grid columns
+  // size to the widest row and the bar drifts off-centre.
+  ok("mobile bar pins its width so the grid columns stay even",
+    /width:\s*calc\(100vw - 16px\)/.test(bar),
+    "fixed + display:grid without width = shrink-to-fit, columns drift");
+  // Grid items default to min-width:auto and blow past their track on long labels.
+  ok("mobile bar lets its grid items shrink below content width",
+    /\.dsh-mf-bar > \*\s*\{[^}]*min-width:\s*0/.test(mobile));
+  // Two buttons sharing a row push each other wider than the track; each must fill it.
+  ok("mobile bar buttons fill their grid cell instead of pushing it wider",
+    /\.dsh-mf-bar-btn,\s*\n\s*\.dsh-mf-bar-count-btn\s*\{[^}]*width:\s*100%/.test(mobile) &&
+    /\.dsh-mf-bar-btn,\s*\n\s*\.dsh-mf-bar-count-btn\s*\{[^}]*justify-content:\s*center/.test(mobile));
+  // The quick-pick panel already spans a full row; it must not be squeezed to half.
+  ok("mobile quick-pick panel spans both grid columns",
+    /\.dsh-mf-picker\s*\{[^}]*grid-column:\s*1 \/ -1/.test(mobile));
+
+  // Two 13px buttons side by side in a 375px viewport: 375 - 16 (bar width) - 16
+  // (padding) - 6 (gap) = 337, so each track is ~168px. The widest label is
+  // "合并转发" (4 chars ≈ 52px) and "已选 12 / 12 条" (≈ 95px); both fit, so the
+  // 8px side padding is enough and no label is clipped.
+  const track = (375 - 16 - 16 - 6) / 2;
+  ok("two columns leave room for the widest bar label",
+    track >= 100, `track ≈ ${track.toFixed(0)}px for a ~95px label`);
+
   // The quick-pick panel must not eat half the screen on a short phone.
   const pickerList = rule(".dsh-mf-picker-list");
   ok("mobile caps the picker list below the desktop height",
