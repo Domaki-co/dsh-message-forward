@@ -78,9 +78,16 @@ fi
 
 # --------------------------------------------------------------- preflight
 say "Preflight"
-ssh -o ConnectTimeout=10 -T git@github.com 2>&1 | grep -q "Hi Domaki-co" \
-  || die "SSH auth to github.com failed — check ~/.ssh/config for the github.com Host block"
-echo "  ok: SSH authenticates as Domaki-co"
+# ssh -T 到 GitHub 认证成功时也以 1 退出（它不提供 shell），而 pipefail 会让
+# `ssh ... | grep -q` 继承这个 1 —— grep 匹配成功也照样判失败。所以先落变量再匹配。
+ssh_out="$(ssh -o ConnectTimeout=10 -T git@github.com 2>&1 || true)"
+case "$ssh_out" in
+  *"Hi Domaki-co"*)
+    echo "  ok: SSH authenticates as Domaki-co" ;;
+  *)
+    printf '%s\n' "$ssh_out" >&2
+    die "SSH auth to github.com failed — check ~/.ssh/config for the github.com Host block" ;;
+esac
 
 # ------------------------------------------------------------------- fork
 say "Forking the catalog"
