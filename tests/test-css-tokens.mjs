@@ -105,18 +105,21 @@ ok("checkmark uses inverted label token",
   /\.dsh-mf-check\.selected \.dsh-mf-check-box::after\s*\{[^}]*var\(--dsw-alias-label-primary-inverted\)/s.test(css));
 
 // --- 8. the forward modal must adapt to the window (bug: content pushed the card off-screen) ---
-// primitives' Modal card is width:min(380px,100%) with no max-height, so the plugin has to
-// cap it itself. The doubled class beats primitives' own rule regardless of <style> order.
+// The modal is now the plugin's own MfModal (规范禁止 require dsh-client-ui-primitives), so the
+// card's default is the plugin's own width:min(380px,100%); the doubled class still widens the
+// forward dialog to 720px and caps it against the modal padding box.
 const dlg = css.match(/\.dsh-mf-dialog\.dsh-mf-dialog\s*\{([^}]*)\}/);
 ok("found .dsh-mf-dialog.dsh-mf-dialog rule (doubled class for specificity)", !!dlg);
 if (dlg) {
-  ok("dialog widens past the primitives 380px default", /width:\s*min\(720px,\s*100%\)/.test(dlg[1]));
+  ok("dialog widens past the 380px default", /width:\s*min\(720px,\s*100%\)/.test(dlg[1]));
   ok("dialog is capped against the Modal padding box", /max-height:\s*100%/.test(dlg[1]));
 }
 ok("dialog class is actually passed to Modal",
   /className:\s*"dsh-mf-dialog"/.test(src) && /contentClassName:\s*"dsh-mf-content"/.test(src));
-const modalBody = css.match(/\.dsh-mf-dialog\.dsh-mf-dialog\s+\.dsh-mf-modal-body\s*\{([^}]*)\}/);
-ok("found the dialog-scoped .dsh-mf-modal-body rule", !!modalBody);
+// .dsh-mf-modal-body is the plugin's own body wrapper (MfModal renders children directly),
+// so it no longer needs the dialog-scoped prefix to beat a foreign rule.
+const modalBody = css.match(/\.dsh-mf-modal-body\s*\{([^}]*)\}/);
+ok("found the .dsh-mf-modal-body rule", !!modalBody);
 if (modalBody) {
   ok("body scrolls internally", /overflow-y:\s*auto/.test(modalBody[1]));
   ok("body can actually shrink (min-height:0)", /min-height:\s*0/.test(modalBody[1]));

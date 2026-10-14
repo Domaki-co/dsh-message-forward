@@ -1,16 +1,20 @@
 {
   "name": "dsh-message-forward",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Cross-session message forwarding for DeepSeek Harness: extract a user message, a model reply, a multi-selected batch, or just the Markdown code blocks from one session and deliver it into another, with silent send, draft fill, or send-and-jump delivery.",
   "type": "module",
   "main": "./lib/index.js",
+  "icon": "./icon.svg",
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
   "files": [
     "lib",
+    "locale/*.json",
     "cordis.patch.yml",
     "icon.svg",
     "README.md",
@@ -23,7 +27,7 @@
   "peerDependencies": {
     "@deepseek-ai/dsh-client-ui-slots": ">=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-0 <0.3.0-0",
     "@deepseek-ai/dsh-client-ui-conversation": ">=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-0 <0.3.0-0",
-    "@deepseek-ai/dsh-client-ui-primitives": ">=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-0 <0.3.0-0",
+    "@deepseek-ai/dsh-client-locale": ">=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-0 <0.3.0-0",
     "@deepseek-ai/dsh-client-ui-workspace": ">=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-0 <0.3.0-0",
     "@deepseek-ai/dsh-api-session-controller": ">=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-0 <0.3.0-0"
   },
@@ -43,8 +47,8 @@
       "platform": "web",
       "inject": [
         "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-conversation",
-        "@deepseek-ai/dsh-client-ui-primitives",
         "@deepseek-ai/dsh-client-ui-workspace",
         "@deepseek-ai/dsh-api-session-controller"
       ]

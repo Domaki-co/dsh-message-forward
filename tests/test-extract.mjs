@@ -1,21 +1,11 @@
 // Harness: load the plugin's extraction layer into a realistic DSH DOM and assert behaviour.
-import { JSDOM } from "jsdom";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { extractionSrc as extractionSlice, localeSrc } from "./_source.mjs";
+import { loadJsdom } from "./_deps.mjs";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
+const JSDOM = await loadJsdom("test-extract.mjs");
 
-const SRC = path.join(here, "..", "lib", "client.js");
-const src = fs.readFileSync(SRC, "utf8");
-
-// --- carve out the pure extraction layer (MD_SEL .. extractUserFromContainer) ---
-const startMark = "\t\tconst MD_SEL = ";
-const endMark = "\t\t// ---------------------------------------------------------------- 会话业务";
-const i = src.indexOf(startMark);
-const j = src.indexOf(endMark);
-if (i < 0 || j < 0 || j < i) throw new Error("could not locate extraction layer");
-const extractionSrc = src.slice(i, j);
+// 源码里的 t("key") 需要文案层；一起 eval 才不会 "t is not defined"
+const extractionSrc = localeSrc + "\n" + extractionSlice;
 console.log("extraction layer bytes:", extractionSrc.length);
 
 // --- realistic DSH chat DOM -------------------------------------------------

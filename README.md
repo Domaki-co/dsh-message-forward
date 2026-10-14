@@ -138,14 +138,40 @@ DSH 会把同一个 `assistant-step` 渲染**两次**，靠 `groupPart` 分流�
 
 **关键陷阱**：`innerText` 对 `hidden` 子树返回空串，而 `textContent` 兜底会把折叠中的思考链正文重新捞回来——这正是「转发里混进思考链」的直接原因。因此判定必须走属性，不能依赖构建期哈希类名，也不能依赖可见性。
 
-### 弹窗自适应
+### UI 原语：不引用任何 Harness Client 包
 
-primitives 的 `Modal` 卡片是 `width:min(380px,100%)` 且没有 `max-height`，内容一多就顶出窗口。插件通过 `className` / `contentClassName` 挂上自己的类（`.dsh-mf-dialog` / `.dsh-mf-content`）接管尺寸，并按官方注释的约定封顶（消费方用 `max-height:100%`，而不是自己算视口）：
+规范（`cordis-plugin-development/references/practices.md`）明确禁止 `require` 任何 Harness
+Client 包（例如 `@deepseek-ai/dsh-client-ui-primitives`）：这些包会在不通知的情况下改变，
+纯 JS 插件又拿不到类型检查，而一个组件抛错会**整块顶掉槽位**（`slot entry crashed in '<slot>'`）。
+因此插件自带一套原语 —— `MfButton` / `MfInput` / `MfModal` / `MfToast` / `MfTooltip`
+以及内联 SVG 图标，按官方原语的标记与行为对齐后用 `dsh-mf-` 前缀重写，样式只取
+`--dsw-alias-*` 主题 token。客户端半边只 `require` 基线运行时 `react` / `react-dom`
+（由浏览器模块表提供）。
 
-- 卡片：`width:min(720px,100%)` + `max-height:100%`
-- 正文区：`dialog > content > body` 全链 `min-height:0` 接上 flex 收缩链，内部滚动；另留 `calc(100dvh - 240px)` 兜底
-- 编辑框 / 会话列表：`min(300px, 32dvh)` / `min(240px, 26dvh)` 跟随视口
-- 选择器写成 `.dsh-mf-dialog.dsh-mf-dialog` 以稳定压过 primitives 的同名规则，不依赖两边 `<style>` 的注入顺序
+弹窗尺寸不再需要 hack 别人的 `width:min(380px,100%)`；加宽仍写成 `.dsh-mf-dialog.dsh-mf-dialog` 这种双写形式，纯粹是为了不依赖两边 `<style>` 的注入顺序：
+
+- 遮罩：`position:fixed; inset:0` + `--dsw-alias-bg-mask-1`；
+- 卡片：基础 `width:min(380px,100%)`，转发面板加宽到 `min(720px,100%)`，`max-height:100%`；
+- 正文区：`content > body` 全链 `min-height:0` 接上 flex 收缩链，内部滚动，另留 `calc(100dvh - 240px)` 兜底；
+- 编辑框 / 会话列表：`min(300px, 32dvh)` / `min(240px, 26dvh)` 跟随视口；
+- 键盘与焦点：`Esc` 关闭、`Tab` 在弹窗内循环、关闭后把焦点还给原来的元素。
+
+### 移动端适配
+
+断点与 `dsh-mobile` 对齐（`max-width: 720px`），只做加法，桌面端规则不变：
+
+| 项目 | 手机上的处理 |
+|---|---|
+| 提示气泡 | `MfTooltip` 挂载后量出真实宽度，把中心夹进视口（`clampCenter`），位移经 `--dsh-mf-tooltip-shift` 与 `data-side` 的居中位移组合。**不夹取时，靠右的转发按钮和靠左的会话表头会让气泡溢出半屏** |
+| 图标按钮 | 视觉尺寸 32px，用 `::after` 把可点区域撑到 44×44，不撑坏消息行排版 |
+| 关闭按钮 | 弹窗 / 面板的关闭按钮直接放大到 44×44 |
+| 工具条按钮 | `min-height: 44px`，文字按钮加高 |
+| 勾选框 | 点击区 32px、圆点 22px，装订线同步加宽到 40px，避免压住正文 |
+| 底部工具条 | `bottom: calc(12px + env(safe-area-inset-bottom))`，避开 iPhone Home 指示条 |
+| 快捷选择面板 | 列表高度从 `min(300px, 38dvh)` 收到 `min(240px, 30dvh)`，不再占掉近半屏 |
+| 弹窗 | 外边距收到 12px、正文内边距收到 16px，把宽度让给内容 |
+
+回归覆盖见 `tests/test-mobile.mjs`（含 951 个位置的夹取扫描）。
 
 ### 浮层挂载
 
@@ -157,25 +183,56 @@ primitives 的 `Modal` 卡片是 `width:min(380px,100%)` 且没有 `max-height`�
 
 ---
 
+## 插件规范符合性
+
+对照 DSH 自带的 `cordis-plugin-development` 技能（`SKILL.md` + `references/*.md`）逐条核对：
+
+| 规范要求 | 本插件的做法 |
+|---|---|
+| 宿主半边只有两种导出形态：`export function apply(ctx)`（可带 `export const inject` / `Config`）或默认导出的服务类，**不可混用** | `lib/index.js` 只导出 `apply(ctx)`，并按规范不导出 `name`（插件 id 来自 `cordis.patch.yml` 的 insert 行） |
+| 客户端产物走 `window.__ModuleLoader__.load({ id, factory })`，id 必须是**包的精确名字** | `lib/client.js` 单文件 bundle，`id: "dsh-message-forward"`，无需构建 |
+| 不 `require` 任何 Harness Client 包 | 只 require 基线 `react` / `react-dom`；自带 `Mf*` 原语 |
+| 只使用主题 token `--dsw-alias-*` 上色 | 全部颜色走 token，不写死深色底（由 `test-css-tokens.mjs` 守护） |
+| 可见文案走 Client locale 服务 | 83 组文案注册到 `locale` 服务的 `dsh-message-forward` 命名空间（zh/en 同键），拿不到服务时回落到内置词表 |
+| 每个资源在 `ctx.effect` / `ctx.on` 内注册并返回清理函数 | 4 个 `ctx.effect`（词表、命令、用户消息按钮、多选装饰）+ 3 个 `ctx.slots.inject`，全部返回清理函数 |
+| 通过 `ctx.slots.inject(owner, () => ctx.slots.register(...))` 贡献 UI | 3 个槽位全部用这个形态，list 槽位都带 `id` 与 `locale` 座位 |
+| 展示元数据放在 `locale/{en,zh}.json` 的 `meta` 下，图标用清单里的顶层 `icon` | `locale/en.json` + `locale/zh.json` 提供标题/描述，`icon: "./icon.svg"`，`exports` 与 `files` 一并声明这些子路径 |
+| 可调项放进插件 `Config`，让用户在 `cordis.patch.yml` 里改 | 本插件无需配置项，因此不声明 `Config` |
+| 不要给会话事件追加新 `type` | 不触碰会话事件流 |
+
+有一处是规范明说「不要」但 DSH 目前没给替代方案的：**用户消息的操作行**。实时槽位树里
+只有 `conversation.chat.assistant-actions`（模型回复的动作行），没有任何用户消息动作槽，
+所以用户消息的转发按钮只能靠 `MutationObserver` 在 DOM 侧补齐。这种做法被限制在最小范围：
+只往 `[data-clock='start']` 行里插一个按钮、卸载时把插进去的节点全部收走、不侵入 DSH 的
+既有节点与内联样式，并由 `test-entry.mjs` 覆盖「装上去 / 卸干净 / 迟到的定时器不能复活」。
+
+---
+
 ## 开发与测试
 
 ```bash
-node tests/run.mjs        # 4 个套件、119 项断言
+node tests/run.mjs        # 7 个套件、321 项断言
 ```
 
-回归测试基于从 `app.asar` 提取的真实 DSH DOM 契约（类名与 `data-*` 属性）在 jsdom 中复现，覆盖单条提取、多选合并、摘要截断、主题 token 有效性、弹窗自适应、以及多选装饰器的挂载与还原：
+缺少 jsdom / react 时相关套件会打印 `SKIP`；`run.mjs` **默认把跳过判为失败**并列出缺口，
+确认要带着这个缺口放行时才加 `--allow-skip`。
+
+回归测试基于从 `app.asar` 提取的真实 DSH DOM 契约（类名与 `data-*` 属性）在 jsdom 中复现：
 
 | 套件 | 覆盖内容 |
 |---|---|
+| `tests/test-conformance.mjs` | 插件规范符合性：清单字段与 `exports` 子路径、`icon`、`locale/*.json`、宿主半边导出形态、只 require 基线运行时、`Mf*` 原语自洽、词表 zh/en 同键且源码无漏网硬编码中文、`t()` 回落与插值、槽位注册契约 |
 | `tests/test-extract.mjs` | 单条转发：行级回溯、只取 `assistant-step` 正文、排除用户消息与「已思考 N 秒」、`turn-error` 回退、分组嵌套穿透 |
 | `tests/test-batch.mjs` | 多选：单元识别、按时间顺序合并、未选中项排除 |
 | `tests/test-css-tokens.mjs` | CSS 引用的每个 `--dsw-alias-*` 必须是 DSH 真实存在的 token |
 | `tests/test-decorator.mjs` | 多选装饰器：装订线 class、定位补丁与精确还原、`role=checkbox` / `aria-checked`、工具条 portal 挂载 |
+| `tests/test-primitives.mjs` | 自有原语 `MfButton` / `MfInput` / `MfModal` / `MfToast` / `MfTooltip` 的 props 契约与渲染标记 |
+| `tests/test-entry.mjs` | 端到端入口：stub 掉 `window.__ModuleLoader__` 跑整个产物 + mock ctx 调 `apply()`，检查槽位/命令/词表登记、清理函数齐备、DOM 注入生效、卸载后无残留 |
 
-测试依赖 `jsdom`，插件本身不依赖它，因此没有写进 `package.json`：
+测试依赖 `jsdom`（以及端到端套件用的 `react` / `react-dom`），插件本身不依赖它们，因此没有写进 `package.json`：
 
 ```bash
-cd tests && npm i jsdom --no-save
+cd tests && npm i --no-save jsdom react@18 react-dom@18   # 必须一条命令装完
 ```
 
 详见 [tests/README.md](tests/README.md)。
@@ -194,12 +251,18 @@ cd tests && npm i jsdom --no-save
 ## 目录结构
 
 ```
-lib/index.js         宿主侧插件入口（注册与日志）
-lib/client.js        Web 侧 UI bundle（转发按钮、弹窗、多选、草稿落地）
+lib/index.js         宿主侧插件入口（按规范只导出 apply(ctx)，有意不做事）
+lib/client.js        Web 侧 UI bundle（转发按钮、原语、弹窗、多选、草稿落地、zh/en 文案）
 cordis.patch.yml     插件注册补丁
+locale/en.json       插件展示元数据（英文标题与描述）
+locale/zh.json       插件展示元数据（中文标题与描述）
 icon.svg             插件图标
 tests/               基于真实 DOM 契约的回归测试
 ```
+
+`lib/*.js` 是手写产物，没有 `src/` 与构建链路 —— 单文件纯 JS bundle 正是规范允许的形态。
+版本号同时出现在 `package.json` 的 `version` 与 `lib/client.js` 的文件头注释里，改动时请一起更新
+（`test-conformance.mjs` 会校验清单的自洽性）。
 
 ---
 

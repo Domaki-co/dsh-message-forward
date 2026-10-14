@@ -1,22 +1,15 @@
 // Verify the batch multi-select path (collectUnits / unitIdForNode / mergeUnits) against the same DOM.
-import { JSDOM } from "jsdom";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { batchUnitsSrc, extractionSrc as extractionSlice, localeSrc } from "./_source.mjs";
+import { loadJsdom } from "./_deps.mjs";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
+const JSDOM = await loadJsdom("test-batch.mjs");
 
-const SRC = path.join(here, "..", "lib", "client.js");
-const src = fs.readFileSync(SRC, "utf8");
-const i = src.indexOf("\t\tconst MD_SEL = ");
-const j = src.indexOf("\t\t// ---------------------------------------------------------------- 会话业务");
-const extractionSrc = src.slice(i, j);
+const extractionSrc = localeSrc + "\n" + extractionSlice;
 
-// collectUnits / unitIdForNode / mergeUnits live after the session section; grab them by markers.
-// Start at the section header so the snippet helpers (toSnippet / unitSnippet) are included too.
-const k = src.indexOf("\t\t// ---------------------------------------------------------------- 批量多选：消息单元");
-const l = src.indexOf("\t\t// ---------------------------------------------------------------- 批量工具条");
-const batchSrc = src.slice(k, l);
+// collectUnits / unitIdForNode / mergeUnits live after the session section; the shared slice
+// starts at the section header so the snippet helpers (toSnippet / unitSnippet) come along too.
+// localeSrc 已经拼在 extractionSrc 前面，这里只取本段（重复声明会直接报错）
+const batchSrc = batchUnitsSrc;
 
 const dom = new JSDOM(`<!doctype html><html><body>
 <div data-conversation-scroll><div class="icaHSq_column">

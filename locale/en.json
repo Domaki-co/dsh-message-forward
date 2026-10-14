@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Message forward",
+    "description": "Extract a user message, a model reply, a multi-selected batch, or just the Markdown code blocks from one session and deliver it into another — silently, as a draft, or send-and-jump."
+  }
+}
