@@ -1,271 +1,265 @@
 # dsh-message-forward
 
+[简体中文](README.md) | [English](README.en.md)
+
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
 [![topic: dsh-plugin](https://img.shields.io/badge/topic-dsh--plugin-blue.svg)](https://github.com/topics/dsh-plugin)
 
-DeepSeek Harness 插件：把**一个会话里的一条消息**（用户提问或模型回复）**精准提取**出来，投递到**另一个会话**。
+> **DeepSeek Harness (DSH) 跨会话消息转发插件**  
+> 精准提取单条或多条会话消息（用户提问或模型回复，含文字与图片），无缝投递至目标会话或新会话；支持多选合并转发。
 
-> Cross-session message forwarding for DeepSeek Harness. Extract one user message or model reply — text plus images — from one session and deliver it into another, with three delivery modes, code-block-only extraction, and multi-select batch merging.
+---
+
+## 目录
+
+- [解决什么问题](#解决什么问题)
+- [核心功能](#核心功能)
+- [安装指南](#安装指南)
+- [使用说明](#使用说明)
+- [架构与实现要点](#架构与实现要点)
+- [插件规范符合性](#插件规范符合性)
+- [开发与测试](#开发与测试)
+- [已知限制](#已知限制)
+- [目录结构](#目录结构)
+- [开源协议](#开源协议)
 
 ---
 
 ## 解决什么问题
 
-长任务会话里塞满了试错、文件检索、工具调用和冗长的思考过程。当你想把「上游会话的某个结论」交给下游会话继续处理时，只有两种糟糕的选择：
+长任务会话随着探索深入，往往充斥着试错记录、大量文件检索、工具调用及冗长的思维链。当需要把上游会话的阶段性成果或结论交付下游会话继续处理时，传统方式存在显著痛点：
 
-1. **直接继承整个会话** —— 上下文被历史噪声撑爆，模型幻觉、格式漂移、指令遵循能力下降，成本也随上下文线性上涨；
-2. **手工复制粘贴** —— 要自己挑段落、剥掉思考链和工具调用、重新上传图片，跨会话时还得来回切换窗口。
+1. **直接继承完整会话上下文**：上下文被大量历史噪声占据，容易导致模型幻觉、格式漂移与指令遵循能力下降，且 Token 成本随上下文长度线性上升；
+2. **手动复制粘贴**：操作繁琐且易出错。需要人工筛选正文、剔除思考链和工具调用痕迹、重新上传附件图片，跨会话频繁切屏；
+3. **移动端操作阻力大**：移动端缺乏多窗口并排视图，在长回复中通过长按精确选取文字极为困难，多会话切换成本高。
 
-本插件把这件事变成一次点击：**从任意一条消息上提取纯净产出（正文 + 图片），作为独立、干净的输入投递给目标会话或全新会话**，从源头切断上下文污染。
+**`dsh-message-forward` 将此流程简化为一键操作**：直接从任意消息提取纯净产出（正文 + 图片），作为独立、干净的输入投递给目标会话或全新会话，从源头上切断上下文污染。
 
 ---
 
-## 功能
+## 核心功能
 
-### 1. 单条消息提取转发
+### 1. 单条消息提取与转发
+- **模型回复**：在每条模型回复下方的动作栏中注入「转发」按钮，一键提取正文与多模态图片；
+- **用户消息**：在用户消息操作行动态注入转发按钮，支持提问内容回流转发；
+- **会话表头快捷入口**：在会话顶部工具栏提供快捷按钮，一键转发当前会话最近一次的模型有效产出；
+- **斜杠命令支持**：支持通过 `/forward` 命令直接调出转发面板。
 
-- 每条**模型回复**下方有「转发」按钮，点击即提取该条回复的正文与图片；
-- 每条**用户消息**的操作行同样注入转发按钮（DSH 未提供用户消息动作槽，插件在 DOM 侧补齐）；
-- 会话表头提供**会话级入口**，一键转发本会话最近一次模型产出；
-- 也可用斜杠命令 `/forward` 触发。
-
-提取范围与 DSH 官方 copy 按钮对齐：只取 `assistant-step` 行的正文，**自动排除思考链、工具调用、过程分组标题（如「已思考 N 秒」）和用户消息**。
+> **正文提取精度**：与 DSH 官方复制行为严格对齐，仅提取 `assistant-step` 行的正文内容，**自动排除思考链（Reasoning / Think 节点）、工具调用、过程分组标题（如「已思考 N 秒」）及用户提问**。
 
 ### 2. 多选合并转发
+- **长按触发**：在任意转发按钮上**长按 2 秒**进入多选模式，按钮呈现环形倒计时动画；
+- **严格时间线排序**：无论用户以何种顺序勾选，合并内容均严格按照消息在原始对话中的时间先后顺序排列；
+- **图文混排聚合**：跨多条消息分散的文字与图片会自动聚合为单次多模态投递载荷；
+- **底部悬浮工具栏**：实时显示「已选 N / M 条」，支持「全选 / 清空 / 退出 (Esc) / 合并转发」；
+- **快捷选择面板（抽屉清单）**：点击工具栏上的计数器可展开消息清单，支持查看角色徽章（用户 / 模型）、序号与摘要（单段最多 150 字符，超出截断显示）。无需长距离滚动长会话即可完成快速勾选；面板列表支持独立滚动，按 `Esc` 优先收起面板，再次按 `Esc` 退出多选。
 
-- 在任意转发按钮上**长按 2 秒**进入多选模式，按钮上会显示环形倒计时；
-- 进入多选后每条消息左侧出现勾选框，可自由勾选/反选；
-- **严格按时间线顺序合并**：无论以什么顺序勾选，合并结果都按消息在对话中的原始先后排列，不会乱序；
-- **图文混排一并打包**：文字与多张图片分散在多条消息中时，全部聚合为一次多模态投递；
-- 底部浮动工具条显示「已选 N / M 条」，提供「全选 / 清空 / 退出 (Esc) / 合并转发」；
-- **快捷选择面板**：点击工具条上的计数按钮展开消息清单，每条带角色徽章（用户 / 模型）、序号与摘要（每段最多 150 字符，超出截断，仅影响显示），**不必滚动到消息本身就能勾选**——长回答、长会话下尤其有用。面板列表独立滚动，不会把工具条顶出视口；`Esc` 先收面板、再退出多选。
+### 3. 发送前编辑与一键模板
+转发弹窗内置文本编辑器，发送前可微调内容，并内置实用处理模板：
 
-### 3. 发送前可编辑 + 快捷加工模板
-
-转发弹窗内的文本框**直接可编辑**，发送前可随手精简或补充要求，并提供一键模板：
-
-| 模板 | 作用 |
+| 模板 | 效果 |
 |---|---|
-| `+ 作为参考背景` | 前置「以下是上游会话的产出结果，请作为参考背景…」 |
-| `+ 作为任务输入` | 前置「请基于以下上游结果继续执行后续任务…」 |
-| `⚡ 仅保留代码块` | 用 Markdown 围栏正则萃取全部代码块，丢弃解释性文字 |
+| `+ 作为参考背景` | 前置注入：「以下是上游会话的产出结果，请作为参考背景…」 |
+| `+ 作为任务输入` | 前置注入：「请基于以下上游结果继续执行后续任务…」 |
 | `重置原文` | 还原为提取到的原始内容 |
-| 附带来源标记 | 可选，在正文前加「【转发自会话「X」· 模型回复】」，**默认关闭**以保持纯净输出 |
+| `附带来源标记` | 可选前置添加「【转发自会话「X」· 模型回复】」（**默认关闭**以保障输入纯净） |
 
 ### 4. 三种投递模式
 
-| 模式 | 行为 |
+| 模式 | 行为与适用场景 |
 |---|---|
-| **发送并跳转** | 直接向目标会话投递 prompt，并把主视图切到目标会话 |
-| **静默发送** | 后台投递，不打断当前浏览，仅以 Toast 反馈 |
-| **填入草稿并跳转** | 切到目标会话并把文本与图片预填进输入框，由用户做最后的提示词组织后自行发送 |
+| **发送并跳转** | 直接向目标会话投递 Prompt，并将主视图自动切换至目标会话 |
+| **静默发送** | 在后台异步投递，不打断当前浏览节奏，执行状态通过 Toast 反馈 |
+| **填入草稿并跳转** | 切换至目标会话，将文本与图片预填进输入框，便于人工做最后的润色与提示词编排 |
 
-### 5. 目标会话选择
+### 5. 灵活的目标会话路由
+- **新建空白会话（干净上下文）**：支持一键创建全新会话，开启纯净的下游工作流；
+- **会话检索与状态显示**：会话列表支持按标题与工作目录搜索，直观呈现运行状态及更新时间；
+- **工作目录继承**：新建会话时自动继承源会话的当前工作目录（`cwd`）。
 
-- 默认提供「**新建空白会话（干净上下文）**」，一键在新会话开始下游工作；
-- 会话列表支持按**标题或工作目录**搜索，显示运行中状态与更新时间；
-- 新建会话时沿用来源会话的工作目录（`cwd`）。
-
-### 6. 多模态图片
-
-消息内的图片会被抓取并转换为标准 Base64 载荷，与文本组合成一次多模态投递；个别图片读取失败时跳过并在 Toast 中告知跳过数量。填入草稿模式走附件通道，图片作为真实附件落进输入框。
+### 6. 多模态图片支持
+自动提取消息内包含的图片并转换为标准 Base64 Payload，与文本协同构建多模态投递。遇到跨域限制或失效图片时自动安全跳过，并通过 Toast 明确提示跳过数量。草稿模式走官方附件管道，图片作为真实附件注入目标会话输入框。
 
 ---
 
-## 安装
+## 安装指南
 
 ```bash
 dsh plugin --profile web add "github:Domaki-co/dsh-message-forward#main"
 ```
 
-要求：
+### 环境要求
+- **Node.js**: `>= 20`
+- **DeepSeek Harness (DSH)**: `>=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-0 <0.3.0-0`
 
-- Node.js >= 20
-- DSH `>=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-0 <0.3.0-0`
-
-插件通过 `cordis.patch.yml` 注册，宿主侧入口为 `lib/index.js`，Web 侧 UI 为 `lib/client.js`（单文件 bundle，无需构建）。
-
----
-
-## 使用
-
-1. 打开任意会话，把鼠标移到一条模型回复或用户消息上，点击**转发**按钮（或点会话表头的转发按钮、或输入 `/forward`）；
-2. 在弹窗里修剪内容、套用模板、选择目标会话与投递模式；
-3. 需要多条一起转发时，**长按转发按钮 2 秒**进入多选，勾选后点「合并转发」。
+插件通过 `cordis.patch.yml` 完成注册，宿主侧入口为 `lib/index.js`，Web 侧 UI 为 `lib/client.js`（零构建手写单文件 Bundle）。
 
 ---
 
-## 实现要点
+## 使用说明
 
-### 复用的宿主扩展点
+1. 打开任意会话，将鼠标悬停在模型回复或用户消息上，点击 **转发** 按钮（或点击会话顶栏转发图标、或在输入框输入 `/forward`）；
+2. 在弹出面板中校对内容、按需应用模板、选择目标会话与投递模式；
+3. 如需多条合并转发，**长按转发按钮 2 秒**进入多选模式，勾选所需消息后点击「合并转发」。
+
+---
+
+## 架构与实现要点
+
+### 宿主扩展点利用
 
 | 扩展点 | 用途 |
 |---|---|
-| `conversation.chat.assistant-actions` | 模型回复下方的转发按钮（`ownerProps.messageId`，标准 props 自带 `sessionId`） |
-| `conversation.session.header.utilities` | 会话表头的会话级转发入口 |
-| `conversation.input.overlay` | 目标会话内落草稿（拿到该会话的 `inputActions`） |
-| `commandUi` | 注册 `/forward` 命令 |
-| DOM 注入 `[data-clock='start']` | 用户消息操作行（DSH 未提供用户消息动作槽） |
+| `conversation.chat.assistant-actions` | 注入模型回复下方的转发操作按钮（获取 `ownerProps.messageId` 与 `sessionId`） |
+| `conversation.session.header.utilities` | 注入会话顶部工具栏入口 |
+| `conversation.input.overlay` | 目标会话草稿注入容器（调用目标会话的 `inputActions`） |
+| `commandUi` | 注册 `/forward` 斜杠命令 |
+| DOM 注入 `[data-clock='start']` | 补齐用户消息操作行按钮（弥补 DSH 官方未提供用户动作槽位的不足） |
 
-投递与草稿落地使用宿主公开 API：
+投递与草稿均调用 DSH 公开 API：
 
 ```js
-// 发送
+// 直接投递
 ctx.sessions.using(id, { source }, (ref) => ref.binding.session.prompt(content, "queue"));
 
-// 草稿：跨会话没有公开的 setDraft API，交给目标会话的 overlay 组件执行
+// 跨会话草稿填充（由目标会话的 overlay 组件执行）
 inputActions.setDraft(text);
 inputActions.addAttachments(ids);
 ```
 
-### DOM 契约依赖
+### DOM 契约与层级定位
 
-DSH 的聊天行是**两层**结构，提取逻辑必须按行级 `[data-chat-flow-kind]` 定位，而不是用 `previousElementSibling` 回溯，否则只能看到尾行自己的操作按钮：
+DSH 聊天消息流采用**两层嵌套结构**，提取逻辑基于 `[data-chat-flow-kind]` 行级属性定位，而非依赖脆弱的兄弟节点相对查找：
 
-- 行级：`div[data-chat-flow-kind][data-chat-turn][data-chat-flow-key]`
-- 尾行：`div[data-turn-tail]`（是上面那行的**子元素**，转发按钮挂在这里）
+- **行级容器**：`div[data-chat-flow-kind][data-chat-turn][data-chat-flow-key]`
+- **行尾操作栏**：`div[data-turn-tail]`（作为行级容器的**子元素**存在，转发动作槽挂载于此）
 
-正文只从 `data-chat-flow-kind="assistant-step"` 的行取，避免把用户消息或「已思考 N 秒」的折叠行混进转发内容。
+提取时严格过滤 `data-chat-flow-kind="assistant-step"`，杜绝误读用户提问或折叠状态的过程行。
 
-### 思考链为什么必须按属性排除
+### 思考链精准过滤机制
 
-DSH 会把同一个 `assistant-step` 渲染**两次**，靠 `groupPart` 分流：`groupPart="reasoning"` 是只含 reasoning 块的行（折叠态被打上 `hidden`），`groupPart="response"` 才是正式回答行。官方 copy 按钮取的是 `assistantText(closing.blocks)`——只拼接 `kind === "text"` 的块，天然不含 reasoning / tool-call。插件在 DOM 侧对齐这个语义，排除三类节点：
+DSH 会将同一个 `assistant-step` 渲染**两次**，通过 `groupPart` 进行物理分流：
+- `groupPart="reasoning"`：仅承载思考链（折叠时附带 `hidden` 属性）；
+- `groupPart="response"`：承载正式回复正文。
 
-- `[data-chat-group-part="reasoning"]`：思考链分组行
-- 带 `hidden` / `data-turn-process-hidden` 的行：被折叠的过程成员
-- `[data-variant="think"]`、`[data-turn-process-inline]`、`[data-markdown-variant="compact"]`：思考链根节点、内联包装、思考链专用的紧凑 markdown 变体（正文用默认 `body` 变体）
+官方复制逻辑读取 `assistantText(closing.blocks)`（仅拼接 `kind === "text"` 的文本块，天然不含 reasoning 和 tool-call）。插件在 DOM 层严格对齐该语义，排除以下三类节点：
+1. `[data-chat-group-part="reasoning"]`：思考链分组行；
+2. 附带 `hidden` / `data-turn-process-hidden` 属性的节点：折叠过程项；
+3. `[data-variant="think"]`、`[data-turn-process-inline]`、`[data-markdown-variant="compact"]`：思考链根节点、内联容器及思考链紧凑 Markdown 变体。
 
-**关键陷阱**：`innerText` 对 `hidden` 子树返回空串，而 `textContent` 兜底会把折叠中的思考链正文重新捞回来——这正是「转发里混进思考链」的直接原因。因此判定必须走属性，不能依赖构建期哈希类名，也不能依赖可见性。
+> **避坑要点**：`innerText` 对带 `hidden` 的子树返回空字符串，但降级使用 `textContent` 会将折叠的思考链文本重新读取出来。因此文本判定必须走 DOM 特征属性过滤，不能依赖可见性计算或构建期哈希类名。
 
-### UI 原语：不引用任何 Harness Client 包
+### UI 原语隔离（无 Harness Client 私有依赖）
 
-规范（`cordis-plugin-development/references/practices.md`）明确禁止 `require` 任何 Harness
-Client 包（例如 `@deepseek-ai/dsh-client-ui-primitives`）：这些包会在不通知的情况下改变，
-纯 JS 插件又拿不到类型检查，而一个组件抛错会**整块顶掉槽位**（`slot entry crashed in '<slot>'`）。
-因此插件自带一套原语 —— `MfButton` / `MfInput` / `MfModal` / `MfToast` / `MfTooltip`
-以及内联 SVG 图标，按官方原语的标记与行为对齐后用 `dsh-mf-` 前缀重写，样式只取
-`--dsw-alias-*` 主题 token。客户端半边只 `require` 基线运行时 `react` / `react-dom`
-（由浏览器模块表提供）。
+根据 DSH 插件开发规范（`practices.md`），严禁在插件中直接 `require` 官方 Harness Client 内部包（如 `@deepseek-ai/dsh-client-ui-primitives`）。私有包在升级中无向下兼容保证，且在纯 JS 环境中缺乏类型防护，一旦组件抛错将导致整个宿主槽位崩溃（`slot entry crashed in '<slot>'`）。
 
-弹窗尺寸不再需要 hack 别人的 `width:min(380px,100%)`；加宽仍写成 `.dsh-mf-dialog.dsh-mf-dialog` 这种双写形式，纯粹是为了不依赖两边 `<style>` 的注入顺序：
+为此，插件内置了完整且轻量的 UI 原语库（`MfButton` / `MfInput` / `MfModal` / `MfToast` / `MfTooltip` 及内联 SVG 图标），并加注 `dsh-mf-` 前缀命名空间隔离。样式全部引用官方 `--dsw-alias-*` 主题 Token，客户端仅依赖 DSH 运行时全局暴露的 `react` 与 `react-dom`。
 
-- 遮罩：`position:fixed; inset:0` + `--dsw-alias-bg-mask-1`；
-- 卡片：基础 `width:min(380px,100%)`，转发面板加宽到 `min(720px,100%)`，`max-height:100%`；
-- 正文区：`content > body` 全链 `min-height:0` 接上 flex 收缩链，内部滚动，另留 `calc(100dvh - 240px)` 兜底；
-- 编辑框 / 会话列表：`min(300px, 32dvh)` / `min(240px, 26dvh)` 跟随视口；
-- 键盘与焦点：`Esc` 关闭、`Tab` 在弹窗内循环、关闭后把焦点还给原来的元素。
+弹窗样式采用 `.dsh-mf-dialog.dsh-mf-dialog` 类名双写提高特异性（Specificity），以解耦宿主与插件样式表的注入顺序竞态：
+- **遮罩层**：`position: fixed; inset: 0` 配合 `--dsw-alias-bg-mask-1`；
+- **弹窗主体**：基础 `width: min(380px, 100%)`，转发面板宽屏自适应 `min(720px, 100%)`，最大高度约束 `max-height: 100%`；
+- **正文伸缩链**：`content > body` 建立完整的 `min-height: 0` Flex 伸缩链，配合内部独立滚动与 `calc(100dvh - 240px)` 兜底；
+- **无障碍与焦点控制**：支持 `Esc` 关闭、弹窗内 `Tab` 焦点循环，关闭后主动交还焦点至原触发元素。
 
-### 移动端适配
+### 移动端深度适配
 
-断点与 `dsh-mobile` 对齐（`max-width: 720px`），只做加法，桌面端规则不变：
+响应式断点与 `dsh-mobile` 对齐（`max-width: 720px`），采用非侵入式增量样式规则：
 
-| 项目 | 手机上的处理 |
+| 界面元素 | 移动端适配方案 |
 |---|---|
-| 提示气泡 | `MfTooltip` 挂载后量出真实宽度，把中心夹进视口（`clampCenter`），位移经 `--dsh-mf-tooltip-shift` 与 `data-side` 的居中位移组合。**不夹取时，靠右的转发按钮和靠左的会话表头会让气泡溢出半屏** |
-| 图标按钮 | 视觉尺寸 32px，用 `::after` 把可点区域撑到 44×44，不撑坏消息行排版 |
-| 关闭按钮 | 弹窗 / 面板的关闭按钮直接放大到 44×44 |
-| 工具条按钮 | `min-height: 44px`，文字按钮加高 |
-| 勾选框 | 点击区 32px、圆点 22px，装订线同步加宽到 40px，避免压住正文 |
-| 底部工具条 | `bottom: calc(12px + env(safe-area-inset-bottom))`，避开 iPhone Home 指示条 |
-| 快捷选择面板 | 列表高度从 `min(300px, 38dvh)` 收到 `min(240px, 30dvh)`，不再占掉近半屏 |
-| 弹窗 | 外边距收到 12px、正文内边距收到 16px，把宽度让给内容 |
+| **Tooltip 气泡防溢出** | `MfTooltip` 挂载后动态获取自身物理宽度，通过 `clampCenter` 将中心坐标约束在视口范围内；避免屏幕边缘转发按钮导致提示框被半屏截断 |
+| **触摸热区规范** | 图标按钮视觉尺寸为 32px，通过 `::after` 伪元素扩展至 44×44px 规范触控区，不破坏行内原有排版 |
+| **关闭与操作按钮** | 弹窗及抽屉关闭按钮尺寸放大至 44×44px；底部工具条按钮保障 `min-height: 44px` |
+| **复选框与装订线** | 勾选框点击区域扩展至 32px，消息左侧装订线扩展至 40px，避免误触或遮挡正文 |
+| **安全区域兼容** | 底部悬浮工具栏通过 `bottom: calc(12px + env(safe-area-inset-bottom))` 避开 iOS Home 底部指示条 |
+| **抽屉高度控制** | 快捷选择面板高度调整为 `min(240px, 30dvh)`，避免在小屏中过度遮挡对话主视口 |
 
-回归覆盖见 `tests/test-mobile.mjs`（含 951 个位置的夹取扫描）。
+### 浮层挂载隔离
 
-### 浮层挂载
-
-底部多选工具条通过 `portalToBody` 挂到 `document.body`：祖先元素若带 `transform` / `filter` / `backdrop-filter`，`position:fixed` 会被困在那个祖先里，导致工具条错位或被裁剪。拿不到 `react-dom` 时原地渲染，功能不受影响。
-
-### 主题与样式
-
-所有颜色取自 DSH 主题 token（`--dsw-alias-*`），浅色/深色主题自动适配，不写死深色底。多选装饰器只给 `position:static` 的宿主补 `position:relative` 并打标记，退出时精确还原（含摘掉空的 `style=""`），不破坏 DSH 原有布局。
+底部多选悬浮工具栏通过 `portalToBody` 挂载至 `document.body`。避免因宿主祖先元素设置 `transform`、`filter` 或 `backdrop-filter` 形成包含块（Containing Block），导致 `position: fixed` 定位失效或发生溢出裁剪。
 
 ---
 
 ## 插件规范符合性
 
-对照 DSH 自带的 `cordis-plugin-development` 技能（`SKILL.md` + `references/*.md`）逐条核对：
+严格对照 DSH `cordis-plugin-development` 规范逐项核验：
 
-| 规范要求 | 本插件的做法 |
+| 规范准则 | 插件实现策略 |
 |---|---|
-| 宿主半边只有两种导出形态：`export function apply(ctx)`（可带 `export const inject` / `Config`）或默认导出的服务类，**不可混用** | `lib/index.js` 只导出 `apply(ctx)`，并按规范不导出 `name`（插件 id 来自 `cordis.patch.yml` 的 insert 行） |
-| 客户端产物走 `window.__ModuleLoader__.load({ id, factory })`，id 必须是**包的精确名字** | `lib/client.js` 单文件 bundle，`id: "dsh-message-forward"`，无需构建 |
-| 不 `require` 任何 Harness Client 包 | 只 require 基线 `react` / `react-dom`；自带 `Mf*` 原语 |
-| 只使用主题 token `--dsw-alias-*` 上色 | 全部颜色走 token，不写死深色底（由 `test-css-tokens.mjs` 守护） |
-| 可见文案走 Client locale 服务 | 83 组文案注册到 `locale` 服务的 `dsh-message-forward` 命名空间（zh/en 同键），拿不到服务时回落到内置词表 |
-| 每个资源在 `ctx.effect` / `ctx.on` 内注册并返回清理函数 | 4 个 `ctx.effect`（词表、命令、用户消息按钮、多选装饰）+ 3 个 `ctx.slots.inject`，全部返回清理函数 |
-| 通过 `ctx.slots.inject(owner, () => ctx.slots.register(...))` 贡献 UI | 3 个槽位全部用这个形态，list 槽位都带 `id` 与 `locale` 座位 |
-| 展示元数据放在 `locale/{en,zh}.json` 的 `meta` 下，图标用清单里的顶层 `icon` | `locale/en.json` + `locale/zh.json` 提供标题/描述，`icon: "./icon.svg"`，`exports` 与 `files` 一并声明这些子路径 |
-| 可调项放进插件 `Config`，让用户在 `cordis.patch.yml` 里改 | 本插件无需配置项，因此不声明 `Config` |
-| 不要给会话事件追加新 `type` | 不触碰会话事件流 |
+| **宿主导出形态** | `lib/index.js` 仅导出 `apply(ctx)`，不导出 `name`（插件 ID 统一由 `cordis.patch.yml` 声明） |
+| **客户端加载规范** | `lib/client.js` 统一经由 `window.__ModuleLoader__.load({ id, factory })` 注册，ID 与包名完全一致 |
+| **依赖边界隔离** | 零引用 Harness Client 内部包，仅声明并使用公共基线运行时（React / ReactDOM） |
+| **样式与主题一致性** | 颜色与层级全部取自 `--dsw-alias-*` Token，无硬编码暗色/浅色底色（由自动化测试防护） |
+| **国际化支持** | 80 组文案注册于 `locale` 服务的 `dsh-message-forward` 命名空间，并配备本地回落词典 |
+| **生命周期与副作用回收** | 全部 DOM 监听、槽位挂载、样式注入与定时器均由 `ctx.effect` 包裹并返回清理函数 |
+| **槽位注册范式** | 统一通过 `ctx.slots.inject(owner, () => ctx.slots.register(...))` 规范接入，附带完备 ID |
+| **元数据完整性** | `locale/en.json` 与 `locale/zh.json` 提供展示元信息，清单顶层声明 `icon.svg` |
+| **事件总线安全性** | 不拦截、篡改或向系统事件流派发非标准私有 `type` |
 
-有一处是规范明说「不要」但 DSH 目前没给替代方案的：**用户消息的操作行**。实时槽位树里
-只有 `conversation.chat.assistant-actions`（模型回复的动作行），没有任何用户消息动作槽，
-所以用户消息的转发按钮只能靠 `MutationObserver` 在 DOM 侧补齐。这种做法被限制在最小范围：
-只往 `[data-clock='start']` 行里插一个按钮、卸载时把插进去的节点全部收走、不侵入 DSH 的
-既有节点与内联样式，并由 `test-entry.mjs` 覆盖「装上去 / 卸干净 / 迟到的定时器不能复活」。
+> **用户消息操作行补充说明**：当前 DSH 槽位树仅开放了 `conversation.chat.assistant-actions`，尚未为用户消息提供动作槽位。为保证体验完整性，插件通过防御式 `MutationObserver` 监听 `[data-clock='start']` 行进行有限注入。该注入严格遵循沙箱与自清洁原则，在组件卸载时彻底移除 DOM 节点，杜绝内存泄漏与副作用残留（由 `test-entry.mjs` 全面覆盖）。
 
 ---
 
 ## 开发与测试
 
+运行完整自动化回归测试套件：
+
 ```bash
-node tests/run.mjs        # 7 个套件、321 项断言
+node tests/run.mjs        # 8 个套件，共 364 项断言
 ```
 
-缺少 jsdom / react 时相关套件会打印 `SKIP`；`run.mjs` **默认把跳过判为失败**并列出缺口，
-确认要带着这个缺口放行时才加 `--allow-skip`。
+> `run.mjs` 默认将任何跳过的套件（SKIP）判定为执行失败，以杜绝依赖缺失导致的覆盖率盲区。仅在明确需要调试特定环节时使用 `--allow-skip` 放行。
 
-回归测试基于从 `app.asar` 提取的真实 DSH DOM 契约（类名与 `data-*` 属性）在 jsdom 中复现：
+### 测试矩阵
 
-| 套件 | 覆盖内容 |
+| 测试套件 | 验证范围 |
 |---|---|
-| `tests/test-conformance.mjs` | 插件规范符合性：清单字段与 `exports` 子路径、`icon`、`locale/*.json`、宿主半边导出形态、只 require 基线运行时、`Mf*` 原语自洽、词表 zh/en 同键且源码无漏网硬编码中文、`t()` 回落与插值、槽位注册契约 |
-| `tests/test-extract.mjs` | 单条转发：行级回溯、只取 `assistant-step` 正文、排除用户消息与「已思考 N 秒」、`turn-error` 回退、分组嵌套穿透 |
-| `tests/test-batch.mjs` | 多选：单元识别、按时间顺序合并、未选中项排除 |
-| `tests/test-css-tokens.mjs` | CSS 引用的每个 `--dsw-alias-*` 必须是 DSH 真实存在的 token |
-| `tests/test-decorator.mjs` | 多选装饰器：装订线 class、定位补丁与精确还原、`role=checkbox` / `aria-checked`、工具条 portal 挂载 |
-| `tests/test-primitives.mjs` | 自有原语 `MfButton` / `MfInput` / `MfModal` / `MfToast` / `MfTooltip` 的 props 契约与渲染标记 |
-| `tests/test-entry.mjs` | 端到端入口：stub 掉 `window.__ModuleLoader__` 跑整个产物 + mock ctx 调 `apply()`，检查槽位/命令/词表登记、清理函数齐备、DOM 注入生效、卸载后无残留 |
+| `test-conformance.mjs` | 插件规范符合性：清单属性、导出格式、依赖边界、组件原语自洽、中英字典同键、槽位注册契约 |
+| `test-extract.mjs` | 单条提取算法：行级回溯、正文提取、排除思考链与用户输入、异常降级分支 |
+| `test-batch.mjs` | 多选合并算法：单元识别、时间轴严格排序、反选排除、跨单元图片聚合 |
+| `test-css-tokens.mjs` | 验证 CSS 引用的每一个 `--dsw-alias-*` 均为 DSH 正式声明的有效 Token |
+| `test-mobile.mjs` | 移动端适配：断点有效性、951 个坐标点 Tooltip 视口夹取扫描、触控热区、安全区边距 |
+| `test-decorator.mjs` | 多选装饰器：装订线注入、定位属性精确还原、无障碍属性（`role=checkbox`）、卸载自清洁 |
+| `test-primitives.mjs` | 自研组件（`MfButton`、`MfModal` 等）Props 契约与 SSR 渲染标记 |
+| `test-entry.mjs` | 端到端集成：验证插件在 Mock 模块加载器与 Cordis 上下文中的装配、注册与彻底卸载 |
 
-测试依赖 `jsdom`（以及端到端套件用的 `react` / `react-dom`），插件本身不依赖它们，因此没有写进 `package.json`：
+本地运行 DOM 相关套件前准备：
 
 ```bash
-cd tests && npm i --no-save jsdom react@18 react-dom@18   # 必须一条命令装完
+cd tests && npm i --no-save jsdom react@18 react-dom@18
 ```
 
-详见 [tests/README.md](tests/README.md)。
+详细测试文档参见 [tests/README.md](tests/README.md)。
 
 ---
 
 ## 已知限制
 
-- **只处理已加载的消息**：快捷选择面板与多选基于当前 DOM 中已渲染的消息行，未滚动加载的历史消息不在列表内；
-- **图片需可抓取**：图片以 Base64 载荷投递，跨域受限或已失效的图片会被跳过（会在 Toast 中提示数量）；
-- **草稿填充依赖宿主输入框就绪**：目标会话的 `inputActions` 尚未挂载时会提示手动粘贴；
-- **DOM 契约随 DSH 版本变化**：升级 DSH 大版本后若聊天行结构变动，提取逻辑需要同步校准（测试套件就是为此准备的）。
+- **视口渲染限制**：多选与快捷抽屉基于当前 DOM 中已渲染的消息，尚未随滚动加载的远端历史消息不在选取范围之内；
+- **图片跨域与有效性**：图片转换为 Base64 打包，若遇跨域限制或链接失效则会自动跳过并在 Toast 中提示；
+- **草稿注入时机**：草稿填入依赖目标会话输入框（`inputActions`）完成挂载，尚未就绪时会提示手动粘贴；
+- **宿主 DOM 结构依赖**：若 DSH 未来发生重大会话层 DOM 结构重构，提取逻辑需做相应同步（由配套回归测试持续守护）。
 
 ---
 
 ## 目录结构
 
 ```
-lib/index.js         宿主侧插件入口（按规范只导出 apply(ctx)，有意不做事）
-lib/client.js        Web 侧 UI bundle（转发按钮、原语、弹窗、多选、草稿落地、zh/en 文案）
-cordis.patch.yml     插件注册补丁
-locale/en.json       插件展示元数据（英文标题与描述）
-locale/zh.json       插件展示元数据（中文标题与描述）
-icon.svg             插件图标
-tests/               基于真实 DOM 契约的回归测试
+dsh-message-forward/
+├── lib/
+│   ├── index.js             # 宿主侧插件入口（按规范导出 apply(ctx)）
+│   └── client.js            # 客户端 UI 单文件 Bundle（组件原语、弹窗、多选、草稿管道、国际化）
+├── cordis.patch.yml         # 插件注册配置
+├── locale/
+│   ├── en.json              # 英文展示元数据（标题与描述）
+│   └── zh.json              # 中文展示元数据（标题与描述）
+├── icon.svg                 # 插件展示图标
+└── tests/                   # 基于真实 DOM 契约的回归测试套件
 ```
-
-`lib/*.js` 是手写产物，没有 `src/` 与构建链路 —— 单文件纯 JS bundle 正是规范允许的形态。
-版本号同时出现在 `package.json` 的 `version` 与 `lib/client.js` 的文件头注释里，改动时请一起更新
-（`test-conformance.mjs` 会校验清单的自洽性）。
 
 ---
 
-## License
+## 开源协议
 
-[MIT](LICENSE) © Domaki-co
+[MIT](LICENSE) © [Domaki-co](https://github.com/Domaki-co)
