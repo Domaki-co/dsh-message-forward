@@ -110,36 +110,20 @@ ok("useLayoutEffect is imported from React",
   /useLayoutEffect,/.test(src.slice(0, src.indexOf("} = React;"))));
 
 // ---------------------------------------------------------------------------
-// 3. Host action row alignment: the forward button must not hug the edge,
-//    and the row must not wrap into two lines on a narrow screen.
+// 3. Modal footer: the four action buttons must not sit flush against the
+//    dialog edge, and on a phone they must not be crushed into one row.
 // ---------------------------------------------------------------------------
-// The host renders `.ppByMG_actions[data-clock]` as flex + justify-content:flex-end,
-// so the LAST child (our button) sits flush against the right edge — and with
-// flex-wrap it drops to a second line on a phone ("three on top, one below").
-// We only ever restyle rows that actually contain our button, via :has().
-const rowRule = css.match(/\[data-clock\]:has\(>\s*\.dsh-mf-btn\)[\s\S]*?\{([^}]*)\}/);
-ok("a :has() rule targets only rows containing our button", !!rowRule);
-if (rowRule) {
-  const body = rowRule[1];
-  ok("row is centred (no longer flush right)", /justify-content:\s*center/.test(body), body.trim().replace(/\s+/g, " "));
-  ok("row no longer wraps on narrow screens", /flex-wrap:\s*nowrap/.test(body));
-  ok("row drops the leftover wrap gap", /row-gap:\s*0/.test(body));
+// The footer wrapper had NO CSS rule at all, so it inherited the dialog's 720px
+// width with zero horizontal padding — the buttons ended up hard against the edge.
+const footerRule = css.match(/\.dsh-mf-footer\s*\{([^}]*)\}/);
+ok("footer has its own rule", !!footerRule);
+if (footerRule) {
+  ok("footer carries the same 24px gutter as header/body",
+    /padding:\s*0 24px/.test(footerRule[1]),
+    footerRule[1].trim().replace(/\s+/g, " "));
 }
-
-// The rule must be scoped with :has() — a bare [data-clock] selector would restyle
-// every message row in the conversation, including ones we never touched.
-ok("the row rule is scoped by :has(), not applied globally",
-  !/(^|\n)\s*\[data-clock\]\s*\{/.test(css) && !/(^|\n)\s*\[class\*='actions'\]\s*\{/.test(css));
-
-// Our button must not stretch or shrink when the row is squeezed.
-ok("our button keeps its intrinsic size in the row",
-  /\.dsh-mf-btn\.dsh-mf-user-btn,[\s\S]{0,80}\.dsh-mf-btn\.dsh-mf-host-action\s*\{[^}]*flex:\s*0 0 auto/.test(css));
-
-// Both entry points must carry the marker class the CSS keys off.
-ok("assistant action button carries dsh-mf-host-action",
-  /className:\s*"dsh-mf-btn dsh-mf-host-action"/.test(src));
-ok("user message button carries dsh-mf-user-btn",
-  /className\s*=\s*"dsh-mf-btn dsh-mf-user-btn"/.test(src));
+ok("footer action group can wrap on its own",
+  /\.dsh-mf-footer-actions\s*\{[^}]*flex-wrap:\s*wrap/s.test(css));
 
 // ---------------------------------------------------------------------------
 // 4. Touch targets: 44px floor under the mobile breakpoint.
@@ -189,6 +173,15 @@ if (mobile) {
   // Narrower modal padding buys back content width.
   const root = rule(".dsh-mf-modal-root");
   ok("mobile tightens the modal padding", /padding:\s*12px/.test(root));
+
+  // The four footer buttons get a two-column grid instead of being crushed
+  // into a single row of tiny text.
+  const footer = rule(".dsh-mf-footer");
+  ok("mobile tightens the footer gutter", /padding:\s*0 16px/.test(footer), footer.trim());
+  ok("mobile lays the footer buttons out as a two-column grid",
+    /grid-template-columns:\s*1fr 1fr/.test(mobile) && /\.dsh-mf-footer-actions\s*\{[\s\S]{0,200}?display:\s*grid/.test(mobile));
+  ok("mobile makes each footer button fill its cell",
+    /\.dsh-mf-footer-actions\s+\.dsh-mf-button\s*\{[^}]*width:\s*100%/.test(mobile));
 }
 
 // ---------------------------------------------------------------------------
