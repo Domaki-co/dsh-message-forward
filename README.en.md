@@ -230,7 +230,7 @@ For more details, see [tests/README.md](tests/README.md).
 
 ## Security & Permissions Disclosure
 
-- **Network Access Boundary**: The plugin invokes browser `fetch(url)` exclusively to decode message-embedded images into Base64 payloads for cross-session delivery. It contains no external network communications, telemetry reporting, or third-party server interactions.
+- **Zero Network Access**: The plugin operates entirely within client-side memory and DOM scope. It invokes no external network APIs (no `fetch`, `WebSocket`, or `EventSource`), with zero telemetry reporting or third-party server communications. Embedded images are decoded into Base64 payloads purely locally via off-screen Canvas and local Blob readers.
 - **Principle of Least Privilege**:
   - Does not read or modify system environment variables or credentials;
   - No local filesystem write capability;
