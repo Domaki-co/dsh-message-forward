@@ -1,6 +1,6 @@
 {
   "name": "dsh-message-forward",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Cross-session message forwarding for DeepSeek Harness: extract a user message, a model reply, or a multi-selected batch from one session and deliver it into another, with silent send, draft fill, or send-and-jump delivery.",
   "type": "module",
   "main": "./lib/index.js",
@@ -9,12 +9,13 @@
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./locale/*.json": "./locale/*.json",
+    "./locale/en.json": "./locale/en.json",
+    "./locale/zh.json": "./locale/zh.json",
     "./package.json": "./package.json"
   },
   "files": [
     "lib",
-    "locale/*.json",
+    "locale",
     "cordis.patch.yml",
     "icon.svg",
     "README.md",

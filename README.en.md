@@ -199,7 +199,7 @@ Audited against the DSH `cordis-plugin-development` specification:
 Run the automated regression test suite:
 
 ```bash
-node tests/run.mjs        # 9 suites, 409 assertions
+node tests/run.mjs        # 9 suites, 410 assertions
 ```
 
 > `run.mjs` treats skipped suites as failures by default to prevent dependency blind spots. Use `--allow-skip` only when intentionally bypassing specific local environments.
@@ -225,6 +225,17 @@ cd tests && npm i --no-save jsdom react@18 react-dom@18
 ```
 
 For more details, see [tests/README.md](tests/README.md).
+
+---
+
+## Security & Permissions Disclosure
+
+- **Network Access Boundary**: The plugin invokes browser `fetch(url)` exclusively to decode message-embedded images into Base64 payloads for cross-session delivery. It contains no external network communications, telemetry reporting, or third-party server interactions.
+- **Principle of Least Privilege**:
+  - Does not read or modify system environment variables or credentials;
+  - No local filesystem write capability;
+  - No Node.js child processes, shell commands, or dynamic code evaluation;
+  - Runs entirely within DSH's sandboxed client lifecycle and cleans up completely upon unmount.
 
 ---
 

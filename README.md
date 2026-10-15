@@ -207,7 +207,7 @@ DSH 会将同一个 `assistant-step` 渲染**两次**，通过 `groupPart` 进�
 运行完整自动化回归测试套件：
 
 ```bash
-node tests/run.mjs        # 9 个套件，共 409 项断言
+node tests/run.mjs        # 9 个套件，共 410 项断言
 ```
 
 > `run.mjs` 默认将任何跳过的套件（SKIP）判定为执行失败，以杜绝依赖缺失导致的覆盖率盲区。仅在明确需要调试特定环节时使用 `--allow-skip` 放行。
@@ -233,6 +233,17 @@ cd tests && npm i --no-save jsdom react@18 react-dom@18
 ```
 
 详细测试文档参见 [tests/README.md](tests/README.md)。
+
+---
+
+## 安全与权限声明
+
+- **网络访问边界**：插件仅在浏览器端执行 `fetch(url)` 用于将消息内引用的图片转码为 Base64 Payload 以便跨会话投递；插件不包含任何外部网络通信、远程遥测上报或第三方服务端交互。
+- **最小权限原则**：
+  - 不读取、修改任何系统环境变量或凭据；
+  - 无本地文件系统写入行为；
+  - 无 Node.js 子进程、Shell 命令或动态代码执行（`eval` / `Function`）；
+  - 完全运行于 DSH 客户端沙箱受控生命周期内，随插件卸载完成自清洁。
 
 ---
 

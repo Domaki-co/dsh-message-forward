@@ -39,7 +39,7 @@ cd tests && npm i --no-save jsdom react@18 react-dom@18
 
 | 文件 | 覆盖内容 |
 |---|---|
-| `test-conformance.mjs` | **插件规范符合性**（`cordis-plugin-development` 技能）：清单字段与 exports 子路径、`icon`、`locale/*.json`、宿主半边的导出形态、客户端只 require 基线运行时、没有 `require("@deepseek-ai/…")`、`Mf*` 原语自洽、词表 zh/en 同键且源码里没有漏网的硬编码中文、`t()` 回落与插值、槽位注册契约 |
+| `test-conformance.mjs` | **插件规范符合性**（`cordis-plugin-development` 技能）：清单字段与 exports 子路径、`icon`、`locale/*.json`（及显式导出）、宿主半边的导出形态、客户端只 require 基线运行时、没有 `require("@deepseek-ai/…")`、`Mf*` 原语自洽、词表 zh/en 同键且源码里没有漏网的硬编码中文、`t()` 回落与插值、槽位注册契约 |
 | `test-extract.mjs` | 单条转发：`assistantTurnNodes` 行级回溯、只取 `assistant-step` 正文、排除用户消息与「已思考 N 秒」、`turn-error` 回退、分组嵌套穿透 |
 | `test-batch.mjs` | 多选：`collectUnits` / `unitIdForNode` / `mergeUnits` 的单元识别、按时间顺序合并、未选中项排除 |
 | `test-css-tokens.mjs` | CSS 里引用的每个 `--dsw-alias-*` 都必须是 DSH 真实存在的 token；底部工具条不得把硬编码深色底与主题文字色混搭 |

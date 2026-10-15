@@ -69,10 +69,12 @@ console.log("\n[1] 清单（package.json）—— 与出货 bundle 的规范形�
   ok('exports 暴露 "."', !!pkg.exports["."]);
   eq('exports 暴露 "./client"（浏览器半边）', pkg.exports["./client"], "./lib/client.js");
   eq('exports 暴露 "./cordis.patch.yml"', pkg.exports["./cordis.patch.yml"], "./cordis.patch.yml");
-  eq('exports 暴露 "./locale/*.json"（readPluginMeta 按 <pkg>/locale/en.json 解析）',
-    pkg.exports["./locale/*.json"], "./locale/*.json");
+  eq('exports 暴露 "./locale/en.json"（readPluginMeta 按子路径解析）',
+    pkg.exports["./locale/en.json"], "./locale/en.json");
+  eq('exports 暴露 "./locale/zh.json"（readPluginMeta 按子路径解析）',
+    pkg.exports["./locale/zh.json"], "./locale/zh.json");
   ok('exports 暴露 "./package.json"', !!pkg.exports["./package.json"]);
-  ok("files 里带上 locale/*.json（否则发布后读不到 metadata）", pkg.files.includes("locale/*.json"));
+  ok("files 里带上 locale（否则发布后读不到 metadata）", pkg.files.includes("locale") || pkg.files.includes("locale/*.json"));
   ok("files 里带上 cordis.patch.yml", pkg.files.includes("cordis.patch.yml"));
   ok("files 里带上 icon.svg", pkg.files.includes("icon.svg"));
 
