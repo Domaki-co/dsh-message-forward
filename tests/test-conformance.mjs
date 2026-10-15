@@ -101,6 +101,13 @@ console.log("\n[1] 清单（package.json）—— 与出货 bundle 的规范形�
     pkg.dsh.client.inject.every((s) => s in (pkg.peerDependencies || {})));
   // 规范：只有 shell 级 / 必须最早激活的包才用 immediately；功能插件不该抢启动。
   ok("功能插件不声明 dsh.client.immediately（不抢启动预取）", pkg.dsh.client.immediately === undefined);
+
+  // 规范：dsh.compatibility 声明与 DSH-Store 滚动兼容窗口
+  ok("dsh.compatibility.dsh 声明了支持的 DSH 范围", typeof pkg.dsh?.compatibility?.dsh === "string" && pkg.dsh.compatibility.dsh.length > 0);
+  ok("dsh.compatibility.dshReleases 声明了精确发行版矩阵", typeof pkg.dsh?.compatibility?.dshReleases === "object" && pkg.dsh.compatibility.dshReleases !== null);
+  for (const rel of ["0.2.0-rc.2", "0.2.1-alpha.2", "0.2.1-alpha.3", "0.2.1-alpha.4"]) {
+    eq(`dsh.compatibility.dshReleases['${rel}'] 为 compatible`, pkg.dsh.compatibility.dshReleases[rel], "compatible");
+  }
 }
 
 // =============================================================================

@@ -199,7 +199,7 @@ Audited against the DSH `cordis-plugin-development` specification:
 Run the automated regression test suite:
 
 ```bash
-node tests/run.mjs        # 9 suites, 410 assertions
+node tests/run.mjs        # 9 suites, 416 assertions
 ```
 
 > `run.mjs` treats skipped suites as failures by default to prevent dependency blind spots. Use `--allow-skip` only when intentionally bypassing specific local environments.
@@ -208,7 +208,7 @@ node tests/run.mjs        # 9 suites, 410 assertions
 
 | Suite | Scope |
 |---|---|
-| `test-conformance.mjs` | Manifest metadata, export formats, dependency boundaries, primitive consistency, locale parity, slot contracts. |
+| `test-conformance.mjs` | Manifest metadata, export formats, dependency boundaries, primitive consistency, locale parity, slot contracts, release compatibility matrix (`dshReleases`). |
 | `test-extract.mjs` | Single-message extraction, row traversal, exclusion of reasoning chains and user messages, error fallbacks. |
 | `test-session.mjs` | Session layer: forward targets match sidebar visibility (subagent / blank / archived rows excluded), archive set read independently, workspace ownership lookup, filter chip composition, scope filtering and default-scope precedence. |
 | `test-batch.mjs` | Multi-select unit recognition, chronological sorting, unselected item exclusion, image aggregation across units. |
@@ -236,6 +236,13 @@ For more details, see [tests/README.md](tests/README.md).
   - No local filesystem write capability;
   - No Node.js child processes, shell commands, or dynamic code evaluation;
   - Runs entirely within DSH's sandboxed client lifecycle and cleans up completely upon unmount.
+
+---
+
+## Compatibility & Host Environment
+
+- **Supported DSH Releases**: `>=0.2.0-rc.1 <0.3.0-0`, explicitly verified and compatible with `0.2.0-rc.1`, `0.2.0-rc.2` (current official desktop application release), and core engine previews `0.2.1-alpha.1` through `0.2.1-alpha.4`.
+- **Pure Client Architecture**: Runs entirely as a DSH Client plugin in Webview/browser contexts with no private Node.js kernel bindings, ensuring seamless cross-release stability.
 
 ---
 
