@@ -147,7 +147,7 @@ message, or a multi-selected batch of messages and images from one session
 and deliver it into another, with three delivery modes (silent send / fill
 draft / send-and-jump) and prompt templates."
 
-git push -u origin "$BRANCH" 2>&1 | tail -3
+git push -f -u origin "$BRANCH" 2>&1 | tail -3
 
 # ------------------------------------------------------------------- PR
 say "Open the pull request"
