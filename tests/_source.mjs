@@ -78,5 +78,8 @@ export const extractionSrc = slice(MD_SEL_START, MARKERS.session);
 /** 多选单元识别（collectUnits / unitIdForNode / mergeUnits / 摘要工具）。 */
 export const batchUnitsSrc = slice(MARKERS.batchUnits, MARKERS.batchBar);
 
+/** 会话业务层（sessionRows / 工作区快照与归档集 / 范围筛选纯函数）。 */
+export const sessionSrc = slice(MARKERS.session, MARKERS.longPress);
+
 /** DOM 观察层（setupUserMessageButtons / setupBatchDecorator）。 */
 export const decoratorSrc = slice(MARKERS.domObserver, MARKERS.entry);

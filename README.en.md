@@ -74,9 +74,10 @@ The forward modal includes an interactive editor to tweak or augment content bef
 | **Fill Draft & Jump** | Navigates to the target session and pre-fills the input box with text and images for final review before manual submission. |
 
 ### 5. Flexible Target Session Routing
+- **Workspace Filtering**: A workspace filter bar (with "All workspaces" and "Ungrouped") sits above the target list, so multi-workspace users can narrow candidates to one workspace before picking a session; the title/`cwd` search then applies within that scope.
 - **New Blank Session (Clean Context)**: Creates a fresh session to start downstream work with zero historical baggage.
 - **Searchable Sessions**: Search existing sessions by title or current working directory (`cwd`), with real-time indicators for running status and updated timestamps.
-- **Working Directory Inheritance**: Automatically inherits the source session's `cwd` when initializing a new session.
+- **Working Directory Inheritance**: Automatically inherits the source session's `cwd` when initializing a new session; if a specific workspace is selected, the new session is created in that workspace instead.
 
 ### 6. Multimodal Image Support
 Images within extracted messages are captured, converted to standard Base64 payloads, and packaged alongside text for multimodal delivery. Unreachable or broken images are gracefully skipped with a Toast notification detailing the skipped count. In draft mode, images are routed through the attachment channel as genuine attachments.
@@ -198,7 +199,7 @@ Audited against the DSH `cordis-plugin-development` specification:
 Run the automated regression test suite:
 
 ```bash
-node tests/run.mjs        # 8 suites, 364 assertions
+node tests/run.mjs        # 9 suites, 409 assertions
 ```
 
 > `run.mjs` treats skipped suites as failures by default to prevent dependency blind spots. Use `--allow-skip` only when intentionally bypassing specific local environments.
@@ -209,6 +210,7 @@ node tests/run.mjs        # 8 suites, 364 assertions
 |---|---|
 | `test-conformance.mjs` | Manifest metadata, export formats, dependency boundaries, primitive consistency, locale parity, slot contracts. |
 | `test-extract.mjs` | Single-message extraction, row traversal, exclusion of reasoning chains and user messages, error fallbacks. |
+| `test-session.mjs` | Session layer: forward targets match sidebar visibility (subagent / blank / archived rows excluded), archive set read independently, workspace ownership lookup, filter chip composition, scope filtering and default-scope precedence. |
 | `test-batch.mjs` | Multi-select unit recognition, chronological sorting, unselected item exclusion, image aggregation across units. |
 | `test-css-tokens.mjs` | Validates that every referenced `--dsw-alias-*` variable exists in official DSH theme definitions. |
 | `test-mobile.mjs` | Responsive breakpoints, 951-point viewport clamping scan for tooltips, touch target bounds, safe area insets. |
@@ -232,6 +234,7 @@ For more details, see [tests/README.md](tests/README.md).
 - **Image Accessibility**: Images are packaged as Base64. Images with strict CORS restrictions or expired local URLs will be skipped with an informational Toast.
 - **Draft Injection Readiness**: Draft pre-filling requires the target session's `inputActions` overlay to be mounted. If not yet ready, a prompt will guide the user to paste manually.
 - **Host DOM Contract Evolution**: Significant structural updates to DSH major versions may require synchronization with the DOM extraction rules (guarded by the automated test suite).
+- **Workspace Filter Bar Height**: On narrow viewports the filter bar scrolls horizontally on a single line, but still costs roughly one row. Whether the footer buttons get pushed out of the viewport on short screens (< 700px tall) has not been confirmed on a real device. If confirmed, the filter bar will be dropped in favor of matching workspace titles through the search box.
 
 ---
 
@@ -247,6 +250,7 @@ dsh-message-forward/
 │   ├── en.json              # English display metadata (title & description)
 │   └── zh.json              # Chinese display metadata (title & description)
 ├── icon.svg                 # Plugin display icon
+├── .agents/notes/           # Agent Notes: landed decisions and rejected alternatives
 └── tests/                   # DOM-contract regression test suites
 ```
 

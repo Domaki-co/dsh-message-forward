@@ -16,6 +16,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const suites = [
   "test-conformance.mjs",
   "test-extract.mjs",
+  "test-session.mjs",
   "test-batch.mjs",
   "test-css-tokens.mjs",
   "test-mobile.mjs",
