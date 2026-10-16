@@ -1,5 +1,5 @@
 // Verify the batch multi-select path (collectUnits / unitIdForNode / mergeUnits) against the same DOM.
-import { batchUnitsSrc, extractionSrc as extractionSlice, localeSrc } from "./_source.mjs";
+import { batchUnitsSrc, extractionSrc as extractionSlice, localeSrc, src } from "./_source.mjs";
 import { loadJsdom } from "./_deps.mjs";
 
 const JSDOM = await loadJsdom("test-batch.mjs");
@@ -84,6 +84,17 @@ check("merged includes user", merged.text.includes("第二条提问"), true);
 check("merged includes assistant", merged.text.includes("第二条回答"), true);
 check("merged labels", merged.text.includes("用户") && merged.text.includes("模型"), true);
 check("merged excludes unselected turn", merged.text.includes("第一条"), false);
+// 块间分隔交给外层 <forwarded_context> 边界：正文自带的 --- 不再与分隔符混淆
+check("merged blocks carry no --- separator", merged.text.includes("\n\n---\n\n"), false);
+check("merged blocks keep numbered headers", merged.text.includes("【1】") && merged.text.includes("【2】"), true);
+
+// 说话者清单：开标签的 speaker 属性要用它，不能笼统写「合并消息」
+check("merged speakers list the roles that actually appear", merged.speakers.join(","), "user,model");
+check("assistant-only merge does not claim a user message",
+  api.mergeUnits(units, new Set([asstId])).speakers.join(","), "model");
+check("user-only merge reports only the user", api.mergeUnits(units, new Set([userId])).speakers.join(","), "user");
+check("handleMerge passes the speaker list into the modal payload",
+  src.includes("speakers: merged.speakers,"), true);
 
 // --- 快捷选择面板的摘要：每段最多 PICK_TEXT_MAX(150) 字符 ---
 check("PICK_TEXT_MAX is 150", api.PICK_TEXT_MAX, 150);

@@ -81,5 +81,9 @@ export const batchUnitsSrc = slice(MARKERS.batchUnits, MARKERS.batchBar);
 /** 会话业务层（sessionRows / 工作区快照与归档集 / 范围筛选纯函数）。 */
 export const sessionSrc = slice(MARKERS.session, MARKERS.longPress);
 
+/** 转发正文的闭合边界工具（段落标记 → ForwardModal 组件之前）。
+ *  纯声明：只依赖 t()，sessionTitle 由调用方在 eval 作用域里补桩。 */
+export const forwardWrapSrc = slice(MARKERS.forwardModal, "\t\tfunction ForwardModal() {");
+
 /** DOM 观察层（setupUserMessageButtons / setupBatchDecorator）。 */
 export const decoratorSrc = slice(MARKERS.domObserver, MARKERS.entry);

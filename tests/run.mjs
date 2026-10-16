@@ -18,6 +18,7 @@ const suites = [
   "test-extract.mjs",
   "test-session.mjs",
   "test-batch.mjs",
+  "test-forward-wrap.mjs",
   "test-css-tokens.mjs",
   "test-mobile.mjs",
   "test-decorator.mjs",

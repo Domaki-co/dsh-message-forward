@@ -1,6 +1,6 @@
 {
   "name": "dsh-message-forward",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Cross-session message forwarding for DeepSeek Harness: extract a user message, a model reply, or a multi-selected batch from one session and deliver it into another, with silent send, draft fill, or send-and-jump delivery.",
   "type": "module",
   "main": "./lib/index.js",
