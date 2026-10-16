@@ -76,20 +76,25 @@ jobs:
       # version is live. This is the check that does. It warns rather than
       # fails: a staged release is a real state a human still has to approve,
       # not a broken build.
+      #
+      # The window is minutes, not seconds: v0.2.8's job finished at 11:47:33Z
+      # and the version only became readable at 11:50:40Z — npm's own
+      # "may take a few minutes to become available". A shorter loop would cry
+      # wolf on every healthy release.
       - name: Verify the version is live
         if: steps.registry.outputs.published == 'false'
         run: |
           name="$(node -p 'require("./package.json").name')"
           version="$(node -p 'require("./package.json").version')"
-          for _ in $(seq 1 12); do
+          for _ in $(seq 1 30); do
             if npm view "$name@$version" version >/dev/null 2>&1; then
               echo "::notice::$name@$version is live on the registry"
               npm view "$name" dist-tags --json
               exit 0
             fi
-            sleep 10
+            sleep 20
           done
-          echo "::warning::$name@$version is not on the registry after ~120s"
+          echo "::warning::$name@$version is not on the registry after ~10 minutes"
           {
             echo "### $name@$version is not live"
             echo

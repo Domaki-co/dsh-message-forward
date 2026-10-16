@@ -82,12 +82,16 @@ workflow 的五条不变量：
 - **约束**：npm 账号必须开启 2FA（所有包现在都要求）。包页面上的"Require two-factor
   authentication and disallow tokens"只影响传统 token，可信发布者的 OIDC 发布不受它
   约束——文档已确认，不再是待验证项。
-- **陷阱：CI 绿灯不等于已上线。** 可信发布者只允许 stage publish 时，`npm publish`
-  会静默降级成暂存提交：退出码 0、provenance 照签、日志里只有一行
-  `Your package is being processed and may take a few minutes to become available.`，
-  版本却只在包页面的 Staged Packages 里等人工批准（`npm stage list` 也看不到那笔）。
-  所以 workflow 末尾有一道 `Verify the version is live`：轮询
-  `npm view <name>@<version>`，探到打 notice、探不到打 warning 并在 step summary 里
-  给出批准入口——这是"已上线"的唯一证据，别再看 job 的颜色下结论。
+- **陷阱：CI 绿灯不等于已上线，但"注册表查不到"也不等于没上线。** 两条实测事实：
+  可信发布者只允许 stage publish 时，`npm publish` 会静默降级成暂存提交——退出码 0、
+  provenance 照签、版本只在包页面等人工批准；而**直发本身也有分钟级的可见性延迟**
+  （v0.2.8：job 11:47:33Z 结束，版本 11:50:40Z 才可读，日志里那句话是
+  `Your package is being processed and may take a few minutes to become available.`）。
+  所以判定"到底发没发"要看 stage API
+  （`https://registry.npmjs.org/-/stage?package=<name>` 的 `items`）或等够时间，
+  不能拿一次 `npm view` 的失败下结论——本次就因为在这段延迟窗口里查了一次，
+  误判成"必须去批准"。workflow 末尾的 `Verify the version is live` 因此按分钟级窗口
+  轮询（30 × 20s ≈ 10 分钟）：探到打 notice，探不到才打 warning 并在 step summary
+  里给出批准入口。job 颜色和注册表瞬时状态都不构成上线证据。
 - **未覆盖**：本地 `npm publish` 仍可绕过全部门禁（`prepublishOnly` 没有加），CI 只覆盖
   tag 触发的路径。
