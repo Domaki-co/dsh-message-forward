@@ -1,0 +1,76 @@
+# Release path: pushing a `v*` tag publishes to npm.
+#
+#   git tag v0.2.8 && git push origin v0.2.8
+#
+# Auth is npm trusted publishing (OIDC): no NPM_TOKEN exists in this repo, so
+# there is no long-lived secret to leak or rotate. npm verifies this workflow's
+# identity against the trusted publisher configured on the package page, and
+# signs the provenance attestation automatically. Setup and the one manual step
+# it cannot cover (the first publish) are in
+# .agents/notes/implemented/process/2026-10-16-npm-release-pipeline.md.
+#
+# The tag must match package.json's version, and a version already on the
+# registry is a no-op — a re-pushed tag is never a red build.
+name: publish
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      # OIDC publishing needs npm >= 11.5.1, and the runner's bundled npm may
+      # predate it.
+      - name: Latest npm
+        run: npm install -g npm@latest
+
+      - name: Tag must match package.json
+        if: github.ref_type == 'tag'
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json v$version"
+            exit 1
+          fi
+
+      # `files` ships lib/ and locale/ only, so the suite never reaches npm —
+      # this is the one gate it passes on the way out. Dependencies are the
+      # tests' own (jsdom + react 18), installed here and never saved.
+      - name: Test suite
+        run: |
+          (cd tests && npm i --no-save jsdom react@18 react-dom@18)
+          node tests/run.mjs
+
+      - name: Is this version already on the registry?
+        id: registry
+        run: |
+          name="$(node -p 'require("./package.json").name')"
+          version="$(node -p 'require("./package.json").version')"
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish
+        if: steps.registry.outputs.published == 'false'
+        run: npm publish --provenance
+
+      - name: Already published — nothing to do
+        if: steps.registry.outputs.published == 'true'
+        run: echo "::notice::$GITHUB_REF_NAME is already on npm; skipped"

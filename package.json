@@ -25,6 +25,9 @@
     "node": ">=20",
     "dsh": ">=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-0 <0.3.0-0"
   },
+  "scripts": {
+    "test": "node tests/run.mjs"
+  },
   "peerDependencies": {
     "@deepseek-ai/dsh-client-ui-slots": ">=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-0 <0.3.0-0",
     "@deepseek-ai/dsh-client-ui-conversation": ">=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-0 <0.3.0-0",
