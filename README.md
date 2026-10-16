@@ -3,7 +3,6 @@
 [简体中文](README.md) | [English](README.en.md)
 
 [![npm](https://img.shields.io/npm/v/dsh-message-forward)](https://www.npmjs.com/package/dsh-message-forward)
-[![npm downloads](https://img.shields.io/npm/dm/dsh-message-forward)](https://www.npmjs.com/package/dsh-message-forward)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
 [![topic: dsh-plugin](https://img.shields.io/badge/topic-dsh--plugin-blue.svg)](https://github.com/topics/dsh-plugin)
