@@ -71,6 +71,33 @@ jobs:
         if: steps.registry.outputs.published == 'false'
         run: npm publish --provenance
 
+      # A stage-only trusted publisher turns the `npm publish` above into a
+      # staged submit that still exits 0, so a green job has never proved the
+      # version is live. This is the check that does. It warns rather than
+      # fails: a staged release is a real state a human still has to approve,
+      # not a broken build.
+      - name: Verify the version is live
+        if: steps.registry.outputs.published == 'false'
+        run: |
+          name="$(node -p 'require("./package.json").name')"
+          version="$(node -p 'require("./package.json").version')"
+          for _ in $(seq 1 12); do
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "::notice::$name@$version is live on the registry"
+              npm view "$name" dist-tags --json
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::warning::$name@$version is not on the registry after ~120s"
+          {
+            echo "### $name@$version is not live"
+            echo
+            echo 'If the trusted publisher allows only `npm stage publish`, this publish was **staged** — approve it on the [Staged Packages tab](https://www.npmjs.com/package/'"$name"'?activeTab=staged-packages) and add `npm publish` to the connection to publish directly.'
+            echo
+            echo 'Otherwise treat this release as failed and read the Publish step above.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Already published — nothing to do
         if: steps.registry.outputs.published == 'true'
         run: echo "::notice::$GITHUB_REF_NAME is already on npm; skipped"

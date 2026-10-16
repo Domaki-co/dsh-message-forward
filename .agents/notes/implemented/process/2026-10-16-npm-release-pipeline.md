@@ -25,7 +25,7 @@ Status: implemented
 在 `v*` tag 推送时执行：**仓库里不存在任何 npm token**，npm 用 workflow 的 OIDC
 身份核对包页面上配置的可信发布者，并自动签发 provenance 证明。
 
-workflow 的四条不变量：
+workflow 的五条不变量：
 
 - **tag 必须等于 `package.json` 的版本**（`if: github.ref_type == 'tag'` +
   `v$version` 比对），版本号与 tag 不允许各自漂移。
@@ -36,6 +36,9 @@ workflow 的四条不变量：
   重推同一个 tag 不会变成红叉。
 - **`setup-node` 之后强制刷新 npm**（OIDC 发布要求 npm ≥ 11.5.1，runner 自带的
   可能更旧），并且 `package-manager-cache: false`——发布构建不缓存。
+- **发布后必须回查 registry**（`Verify the version is live`：轮询
+  `npm view <name>@<version>`），因为 `npm publish` 在 stage-only 连接下会以 0 退出却
+  只入暂存队列——job 颜色不构成上线证据，见 Consequences 的"陷阱"。
 
 一次性人工步骤（workflow 无法覆盖的部分，顺序不可颠倒）：
 
@@ -43,7 +46,11 @@ workflow 的四条不变量：
    必须本地交互式 `npm publish`（带 2FA）。
 2. 在包页面的 Settings → Trusted Publisher 填 GitHub Actions：仓库
    `Domaki-co/dsh-message-forward`、workflow 文件名 `publish.yml`、
-   environment 留空（workflow 里没有声明 environment）。
+   environment 留空（workflow 里没有声明 environment）、**Allowed actions 勾上
+   `npm publish`**。表单里 `npm stage publish` 恒允许、不参与勾选，而 2026-09-03
+   之后新建的配置默认**只**给 stage publish——不勾这一项，CI 的 `npm publish` 会走
+   暂存流程。配置保存后不可编辑，改只能删除重建；建好后 2 天内要有一次成功发布验证，
+   否则过期作废。
 3. 之后每次发版：改 `package.json` 版本 → 提交 → `git tag vX.Y.Z && git push origin vX.Y.Z`。
 
 `repository` 字段（`git+https://github.com/Domaki-co/dsh-message-forward.git`）是目录
@@ -73,7 +80,14 @@ workflow 的四条不变量：
   反过来 CI 会以 `ENEEDAUTH`/身份不匹配失败。`workflow_dispatch` 保留为逃生阀，可信发布在
   手动触发下同样有效。
 - **约束**：npm 账号必须开启 2FA（所有包现在都要求）。包页面上的"Require two-factor
-  authentication and disallow tokens"选项不会影响 OIDC 之外的任何东西，但它在文档里只写了
-  "必须交互式发布、token 一律不行"，**是否与可信发布共存未经验证**——要开之前先确认。
+  authentication and disallow tokens"只影响传统 token，可信发布者的 OIDC 发布不受它
+  约束——文档已确认，不再是待验证项。
+- **陷阱：CI 绿灯不等于已上线。** 可信发布者只允许 stage publish 时，`npm publish`
+  会静默降级成暂存提交：退出码 0、provenance 照签、日志里只有一行
+  `Your package is being processed and may take a few minutes to become available.`，
+  版本却只在包页面的 Staged Packages 里等人工批准（`npm stage list` 也看不到那笔）。
+  所以 workflow 末尾有一道 `Verify the version is live`：轮询
+  `npm view <name>@<version>`，探到打 notice、探不到打 warning 并在 step summary 里
+  给出批准入口——这是"已上线"的唯一证据，别再看 job 的颜色下结论。
 - **未覆盖**：本地 `npm publish` 仍可绕过全部门禁（`prepublishOnly` 没有加），CI 只覆盖
   tag 触发的路径。
