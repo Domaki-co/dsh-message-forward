@@ -67,6 +67,8 @@ The forward modal includes an interactive editor to tweak or augment content bef
 | `Raw text (no tags)` | Drops the boundary too: puts the upstream body back as-is (tag literals inside it are still neutralized, so the receiver sees plain text) |
 | `Include Source Attribution` | (Optional) Prepends *"[Forwarded from Session 'X' · Model]"*. **Disabled by default** — the opening tag already carries session and speaker. |
 
+- **Custom Template Management**: Click "Manage templates" on the quick action bar to create and manage custom prompt templates (e.g., "Code Review", "Translate to English") with customizable prompt prefixes and context boundary settings. Templates are persisted in client storage and accessible with a single click.
+
 #### Quote boundary: `<forwarded_context>`
 
 Every forwarded upstream payload is wrapped in a paired tag, with session and speaker as attributes:
@@ -104,6 +106,8 @@ Why:
 
 ### 6. Multimodal Image Support
 Images within extracted messages are captured, converted to standard Base64 payloads, and packaged alongside text for multimodal delivery. Unreachable or broken images are gracefully skipped with a Toast notification detailing the skipped count. In draft mode, images are routed through the attachment channel as genuine attachments.
+
+- **One-click Thumbnail Image Copying to Clipboard**: Hover over any image thumbnail in the forward modal to copy the image directly to the system clipboard as a standard PNG binary bitmap (solving DSH's native limitation of copying only file names). Paste seamlessly (`Ctrl+V / Cmd+V`) into external applications like WeChat, Slack, Word, or Notion.
 
 ---
 
@@ -211,15 +215,15 @@ Audited against the DSH `cordis-plugin-development` specification:
 |---|---|
 | **Host Export Shape** | `lib/index.js` strictly exports `apply(ctx)`. Does not export `name` (ID is resolved from `cordis.patch.yml`). |
 | **Client Bundle Registration** | `lib/client.js` invokes `window.__ModuleLoader__.load({ id, factory })` using exact package name (`dsh-message-forward`). |
-| **Dependency Boundary** | Zero runtime `require` of `@deepseek-ai/*` client packages; relies solely on standard `react` / `react-dom`. |
-| **Dynamic Theme Tokens** | All styling uses `--dsw-alias-*` tokens; zero hardcoded dark-mode backgrounds (guarded by regression tests). |
-| **i18n & Client Locale** | 80 UI text entries registered under `locale` namespace `dsh-message-forward` with fallback to internal dictionaries. |
+| **Dependency Boundary** | No runtime `require` of any `@deepseek-ai/*` package (including `dsh-client-ui-primitives`); only `react` / `react-dom` are taken from the browser module table. Host packages appear in `peerDependencies` + `dsh.client.inject` purely to declare **activation order and injected surface** (slots, locale and session services are injected by the host) — that is not a `require`. |
+| **Dynamic Theme Tokens** | Structural colors and layers come from `--dsw-alias-*` tokens; a few intentional accents (role badges) keep fixed values and do not follow dark/light inversion. Regression tests only assert that every referenced token really exists (`test-css-tokens.mjs`) — they do not check for hardcoded colors. |
+| **i18n & Client Locale** | 115 UI text entries registered under `locale` namespace `dsh-message-forward` with fallback to internal dictionaries. |
 | **Resource Cleanup** | All event listeners, DOM observers, slot registrations, and style injections return teardown functions within `ctx.effect`. |
 | **Slot Injection Pattern** | Standardized `ctx.slots.inject(owner, () => ctx.slots.register(...))` pattern with unique `id` and locale bindings. |
 | **Display Metadata** | Metadata configured in `locale/en.json` and `locale/zh.json`; package entrypoints properly exposed in `package.json`. |
 | **Non-Intrusive Event Bus** | Does not mutate or append custom types to core session event streams. |
 
-> **User Message Actions Rationale**: DSH currently provides `conversation.chat.assistant-actions` but lacks a dedicated slot for user messages. The plugin bridges this gap using a minimal, defensive `MutationObserver` targeting `[data-clock='start']`. Injected nodes are strictly tracked and completely cleaned up on unmount without mutating native DOM nodes or inline styles.
+> **User Message Actions Rationale**: DSH currently provides `conversation.chat.assistant-actions` but lacks a dedicated slot for user messages. The plugin bridges this gap using a minimal, defensive `MutationObserver` targeting `[data-clock='start']`. Injected nodes are strictly tracked and completely cleaned up on unmount without mutating native DOM nodes or inline styles. Coverage (`test-entry.mjs`) spans injection, re-mount, ARIA state, locale lookups and unmount — against the DOM contract replicated inside this repo, so a change in the real host DOM is not self-detectable here.
 
 ---
 
@@ -259,7 +263,7 @@ For more details, see [tests/README.md](tests/README.md).
 
 ## Security & Permissions Disclosure
 
-- **Zero Network Access**: The plugin operates entirely within client-side memory and DOM scope. It invokes no external network APIs (no `fetch`, `WebSocket`, or `EventSource`), with zero telemetry reporting or third-party server communications. Embedded images are decoded into Base64 payloads purely locally via off-screen Canvas and local Blob readers.
+- **No outbound requests**: no `fetch` / `WebSocket` / `EventSource`, no telemetry, no third-party server communication. Image transcoding reads the **image URLs already rendered in the conversation** (`blob:` / `data:` / same-origin or remote), implemented with `XMLHttpRequest` + `FileReader`, with off-screen Canvas as the fallback path — so it adds no new outbound traffic, but it does go through a network read API (reading the very image the host already rendered).
 - **Principle of Least Privilege**:
   - Does not read or modify system environment variables or credentials;
   - No local filesystem write capability;

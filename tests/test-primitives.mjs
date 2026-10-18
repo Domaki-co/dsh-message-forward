@@ -266,6 +266,17 @@ console.log("\n[5] MfTooltip —— 只在提示时才 portal，且不吞掉子�
   act(() => { document.querySelector("#root button").dispatchEvent(new dom.window.FocusEvent("focusin", { bubbles: true })); });
   eq("label 可以是函数", document.body.querySelector(".dsh-mf-tooltip span.dsh-mf-tooltip-label").textContent, "函数式文案");
   render(null);
+
+  // side="top" 锚点计算（rect.top - gap，gap 默认 8）
+  render(h(MfTooltip, { label: "顶部提示", side: "top" }, h("button", { type: "button", className: "dsh-mf-btn-top" }, "top-btn")));
+  const topBtn = document.querySelector("#root button.dsh-mf-btn-top");
+  topBtn.getBoundingClientRect = () => ({ left: 100, top: 200, bottom: 230, width: 50, height: 30 });
+  act(() => { topBtn.dispatchEvent(new dom.window.FocusEvent("focusin", { bubbles: true })); });
+  const topBubble = document.body.querySelector("div.dsh-mf-tooltip");
+  ok("顶部气泡出现", !!topBubble);
+  eq("data-side 透传为 top", topBubble && topBubble.getAttribute("data-side"), "top");
+  eq("side=top 时 top 锚点为 rect.top - gap", topBubble && topBubble.style.top, "192px");
+  render(null);
 }
 
 // =============================================================================

@@ -16,7 +16,8 @@ function loadSessionApi(ctx) {
     const api = (function(){ ${sessionSrc.replace(/\bctxRef\b/g, "__ctx")}
       return { sessionRows, workspaceSnapshot, archivedSessionIds,
                workspaceOwnerIndex, workspaceRowsFrom, scopeSessionRows,
-               resolveDefaultScope, SCOPE_ALL, SCOPE_UNGROUPED, DEFAULT_WORKSPACE_TITLE };
+               resolveDefaultScope, SCOPE_ALL, SCOPE_UNGROUPED, DEFAULT_WORKSPACE_TITLE,
+               buildPromptContent, dataUrlToFile };
     })();
     return { set ctx(v) { __ctx = v; }, api };
   `)(t, console);
@@ -229,6 +230,49 @@ console.log("\n[8] 默认范围优先级（resolveDefaultScope）");
   eq("源会话无工作区 → 全部工作区", h.api.resolveDefaultScope("gone", "", chips), h.api.SCOPE_ALL);
   eq("无记忆值 + 源会话有工作区 → 源会话工作区", h.api.resolveDefaultScope("", "w1", chips), "w1");
   eq("记忆值为「未分组」且该项存在 → 用之", h.api.resolveDefaultScope(h.api.SCOPE_UNGROUPED, "", [{ scope: h.api.SCOPE_ALL }, { scope: h.api.SCOPE_UNGROUPED }]), h.api.SCOPE_UNGROUPED);
+}
+
+console.log("\n[9] buildPromptContent 兜底与降级");
+{
+  const h = loadSessionApi();
+  // 1. 转码失败的跨域/网络图片（模拟 node/无 DOM 环境下无法转 Base64），自动以 Markdown 链接兜底进入正文，且 items.length 不为 0
+  const p1 = await h.api.buildPromptContent("", [{ url: "https://example.com/arch.png", name: "架构图" }]);
+  eq("纯网络图片且转码失败：自动生成 Markdown 文本项", p1.items.length, 1);
+  eq("纯网络图片项为文本类型", p1.items[0].type, "text");
+  eq("纯网络图片项正文为 Markdown 语法", p1.items[0].text, "![架构图](https://example.com/arch.png)");
+  eq("原始图片被记录进 skipped", p1.skipped.length, 1);
+
+  // 2. 正文中已含有该图片 URL 时不重复追加
+  const p2 = await h.api.buildPromptContent("参考 ![架构图](https://example.com/arch.png)", [{ url: "https://example.com/arch.png", name: "架构图" }]);
+  eq("已含 URL 时不重复追加", p2.items[0].text, "参考 ![架构图](https://example.com/arch.png)");
+
+  // 3. 有正文且有新网络图片：追加至正文末尾
+  const p3 = await h.api.buildPromptContent("正文说明", [{ url: "https://example.com/demo.png", name: "示例文档" }]);
+  eq("新图片追加到正文末尾", p3.items[0].text, "正文说明\n\n![示例文档](https://example.com/demo.png)");
+
+  // 4. Data URL 可正常解析为多模态 image 项
+  const dotData = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+  const p4 = await h.api.buildPromptContent("带图", [{ url: dotData, name: "像素点" }]);
+  eq("Data URL 产出两个 item（image + text）", p4.items.length, 2);
+  eq("第一个 item 为 image 类型", p4.items[0].type, "image");
+  eq("image 项的 mediaType 为 image/png", p4.items[0].mediaType, "image/png");
+  eq("image 项的 name 为 像素点", p4.items[0].name, "像素点");
+  eq("Data URL 不进 skipped", p4.skipped.length, 0);
+
+  // 5. dataUrlToFile 自动补齐后缀
+  const f1 = h.api.dataUrlToFile(dotData, "architecture");
+  eq("无后缀名称自动补全 .png", f1 && f1.name, "architecture.png");
+  const f2 = h.api.dataUrlToFile(dotData, "diagram.png");
+  eq("已有后缀名称不重复追加", f2 && f2.name, "diagram.png");
+
+  // 6. 工作区图片：正文兜底引用消息里原本写的地址，不把插件内部的 api/file 路由写进转发正文
+  const wsUrl = "http://127.0.0.1:19387/api/file?path=%2Fws%2Fshot.png";
+  const p6 = await h.api.buildPromptContent("看这张", [{ url: wsUrl, altUrl: "http://127.0.0.1:19387/shot.png", authored: "shot.png", name: "截图" }]);
+  eq("正文兜底用消息原本写的相对路径", p6.items[0].text, "看这张\n\n![截图](shot.png)");
+  const p7 = await h.api.buildPromptContent("看这张", [{ url: wsUrl, authored: "/ws/abs.png", name: "绝对图" }]);
+  eq("正文兜底保留原本写的绝对路径", p7.items[0].text, "看这张\n\n![绝对图](/ws/abs.png)");
+  const p8 = await h.api.buildPromptContent("看这张", [{ url: "blob:http://127.0.0.1:19387/abc", authored: "blob:http://127.0.0.1:19387/abc", name: "附件" }]);
+  eq("blob 附件不进正文", p8.items[0].text, "看这张");
 }
 
 const summary = `=== ${passed} passed, ${failures.length} failed ===`;

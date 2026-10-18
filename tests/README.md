@@ -1,7 +1,8 @@
 # dsh-message-forward 测试
 
-针对 `lib/client.js` 的回归测试，全部基于**真实 DSH DOM 契约**（从 `app.asar` 里的
-`ui-chat` 源码提取的类名与 `data-*` 属性）在 jsdom 中复现。
+针对 `lib/client.js` 的回归测试。其中 5 套基于**真实 DSH DOM 契约**（从 `app.asar` 里的
+`ui-chat` 源码提取的类名与 `data-*` 属性）在 jsdom 中复现；其余为纯静态检查或纯函数验证
+（切片执行会话业务函数、扫 CSS / 源码文本），不造 DOM。
 
 ```bash
 node tests/run.mjs                 # 默认：任何 SKIP 都算失败
@@ -18,7 +19,7 @@ cd tests && npm i --no-save jsdom react@18 react-dom@18
 
 | 依赖 | 谁要 | 说明 |
 |---|---|---|
-| 无 | `test-conformance.mjs`、`test-css-tokens.mjs`、`test-forward-wrap.mjs` | 纯静态检查（读源码 / CSS） |
+| 无 | `test-conformance.mjs`、`test-session.mjs`、`test-forward-wrap.mjs`、`test-css-tokens.mjs`、`test-mobile.mjs` | 纯静态 / 纯函数检查：读源码与 CSS、切片执行会话业务函数，不造 DOM |
 | `jsdom` | `test-extract.mjs`、`test-batch.mjs`、`test-decorator.mjs` | 造真实 DOM 跑提取 / 装饰器 |
 | `jsdom` + `react` / `react-dom` | `test-primitives.mjs`、`test-entry.mjs` | **`test-entry.mjs` 是唯一真正调 `apply()` 的端到端覆盖**，`test-primitives.mjs` 用 `react-dom/server` 渲染原语；插件运行时从 DSH 的浏览器模块表里取 react，测试环境得自己装 |
 
@@ -41,6 +42,7 @@ cd tests && npm i --no-save jsdom react@18 react-dom@18
 |---|---|
 | `test-conformance.mjs` | **插件规范符合性**（`cordis-plugin-development` 技能）：清单字段与 exports 子路径、`icon`、`locale/*.json`（及显式导出）、宿主半边的导出形态、客户端只 require 基线运行时、没有 `require("@deepseek-ai/…")`、`Mf*` 原语自洽、词表 zh/en 同键且源码里没有漏网的硬编码中文、`t()` 回落与插值、槽位注册契约、版本兼容性声明矩阵（`dshReleases`） |
 | `test-extract.mjs` | 单条转发：`assistantTurnNodes` 行级回溯、只取 `assistant-step` 正文、排除用户消息与「已思考 N 秒」、`turn-error` 回退、分组嵌套穿透 |
+| `test-session.mjs` | 会话业务层：**已归档会话不得进入转发目标列表**（归档集与 `items` 各自判定，`workspaceSnapshot()` 返回 null 时不许把归档过滤静默跳过）；工作区筛选条构成与范围筛选优先级分支 |
 | `test-batch.mjs` | 多选：`collectUnits` / `unitIdForNode` / `mergeUnits` 的单元识别、按时间顺序合并、未选中项排除；块间不再插 `---` 分隔线、`speakers` 按实际出现过的角色去重（`user,model` / 仅模型 / 仅用户）并随 payload 传给弹窗 |
 | `test-forward-wrap.mjs` | **转发引文的成对边界**：词表里的开 / 闭标签（zh / en 逐字相同、不再有 `source=` / `role=`、`modal.roleBatchSource` 不得复活）；成对包裹（含空 / `null` 正文）；**反伪造**（正文里的 `<forwarded_context` / `</forwarded_context` 只被转义成 `&lt;…`，大小写变体同样拦得住，包裹后能闭合边界的标签恰好 2 个）；属性转义与空白折叠（引号、`&`、尖括号、换行不得把开标签拆成两行）；`forwardLabels` 的 `session` / `speaker` 取值（批量多角色、顺序、缺 `speakers` 时留空）；`contextBoundaryIssue` 的九类输入（0/0 与 1/1 开在前不告警，漏一个 / 多一个 / 闭在开之前各自报数）；以及接线不变量（初始正文与模板都走 `wrapContextBody`、`「原文」`分支仍调 `neutralizeContextBody`、告警行走 `.dsh-mf-warn` 与真实主题 token） |
 | `test-css-tokens.mjs` | CSS 里引用的每个 `--dsw-alias-*` 都必须是 DSH 真实存在的 token；底部工具条不得把硬编码深色底与主题文字色混搭 |

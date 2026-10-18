@@ -281,5 +281,112 @@ check("reasoning: the reasoning row is not even a candidate node",
   apiR.assistantTurnNodes(rAnchor).map((n) => n.getAttribute("data-chat-flow-kind")).join(","),
   "turn-process,assistant-step");
 
-console.log(`\n=== ${pass} passed, ${fail} failed ===`);
+// ---- images extraction & markdown preservation ----
+console.log("\n--- images extraction & markdown preservation ---");
+const imgDom = new JSDOM(`<!doctype html><html><body>
+<div data-conversation-scroll><div class="icaHSq_column">
+ <div class="icaHSq_flowItem" data-chat-flow-key="u10" data-chat-flow-kind="user" data-chat-turn="10">
+   <div class="IzP3Va_userRow">
+     <div class="IzP3Va_userStack">
+       <div class="IzP3Va_bubble">请画一张架构图</div>
+       <div class="IzP3Va_gallery"><img src="blob:http://localhost:3000/user-sketch.png" alt="草图"></div>
+     </div>
+     <div class="ppByMG_actions" data-clock="start"><button>copy</button></div>
+   </div>
+ </div>
+ <div class="icaHSq_flowItem" data-chat-flow-key="a10" data-chat-flow-kind="assistant-step" data-chat-turn="10">
+   <div class="markdown" data-markdown-variant="body">
+     <p>这是设计架构图：</p>
+     <p><img src="https://example.com/arch.png" alt="系统架构图"></p>
+     <p>请查收。</p>
+   </div>
+ </div>
+ <div class="icaHSq_flowItem" data-chat-flow-key="tt10" data-chat-flow-kind="turn-tail" data-chat-turn="10">
+   <div class="TurnTailNodeView_root" data-turn-tail="10"><div class="ppByMG_actions" data-clock="end"><button id="imgbtn">f</button></div></div>
+ </div>
+ <div class="icaHSq_flowItem" data-chat-flow-key="a11" data-chat-flow-kind="assistant-step" data-chat-turn="11">
+   <div class="markdown" data-markdown-variant="body">
+     <p><img src="https://example.com/pure-chart.png" alt="纯图表"></p>
+   </div>
+ </div>
+ <div class="icaHSq_flowItem" data-chat-flow-key="tt11" data-chat-flow-kind="turn-tail" data-chat-turn="11">
+   <div class="TurnTailNodeView_root" data-turn-tail="11"><div class="ppByMG_actions" data-clock="end"><button id="purebtn">f</button></div></div>
+ </div>
+</div></div></body></html>`, { pretendToBeVisual: true });
+
+const apiImg = new Function("document", "Node", "Element",
+  extractionSrc + "\n; return { extractAssistantFromAnchor, extractUserFromContainer, collectImages, assistantTurnNodes };"
+)(imgDom.window.document, imgDom.window.Node, imgDom.window.Element);
+
+const imgAnchor1 = imgDom.window.document.getElementById("imgbtn").closest("[data-turn-tail]");
+const rImg1 = apiImg.extractAssistantFromAnchor(imgAnchor1);
+checkHas("assistant with image: preserves markdown image in text", rImg1.text, "![系统架构图](https://example.com/arch.png)");
+checkHas("assistant with image: contains surrounding text", rImg1.text, "这是设计架构图：");
+check("assistant with image: images array has url and alt", rImg1.images.length, 1);
+check("assistant with image: image url matches", rImg1.images[0].url, "https://example.com/arch.png");
+check("assistant with image: image name matches", rImg1.images[0].name, "系统架构图");
+
+const imgAnchor2 = imgDom.window.document.getElementById("purebtn").closest("[data-turn-tail]");
+const rImg2 = apiImg.extractAssistantFromAnchor(imgAnchor2);
+check("pure image assistant: text is not empty and has markdown", rImg2.text, "![纯图表](https://example.com/pure-chart.png)");
+check("pure image assistant: images array has 1 image", rImg2.images.length, 1);
+
+const userRow = imgDom.window.document.querySelector("[data-clock='start']");
+const uImg = apiImg.extractUserFromContainer(userRow);
+check("user with gallery blob: bubble text is preserved without raw blob", uImg.text, "请画一张架构图");
+check("user with gallery blob: images collected", uImg.images.length, 1);
+check("user with gallery blob: url matches", uImg.images[0].url, "blob:http://localhost:3000/user-sketch.png");
+
+// 4. 用户在气泡中内联 Markdown 图片语法时，正文保留该图片 Markdown
+const u2Bubble = imgDom.window.document.createElement("div");
+u2Bubble.className = "IzP3Va_bubble";
+u2Bubble.innerHTML = "<p>看图：<img src=\"https://example.com/ref.png\" alt=\"参考\" /> 能行吗？</p>";
+const u2Row = imgDom.window.document.createElement("div");
+u2Row.className = "IzP3Va_userRow";
+u2Row.appendChild(u2Bubble);
+const uImg2 = apiImg.extractUserFromContainer(u2Row);
+checkHas("user bubble with markdown img: preserves tag", uImg2.text, "![参考](https://example.com/ref.png)");
+
+// 5. 锚点直接落在 assistant-step 行内时（如未来按钮挂载位置变化），自身节点被成功保留
+const directStep = imgDom.window.document.querySelector("[data-chat-flow-key='a10']");
+const directNodes = apiImg.assistantTurnNodes(directStep);
+check("assistantTurnNodes directly on step: includes itself", directNodes.some((n) => n === directStep), true);
+
+// ---- 工作区图片：markdown 相对路径补成宿主 api/file 路由 ----
+console.log("\n--- workspace image resolution ---");
+const wsDom = new JSDOM(`<!doctype html><html><body>
+ <div class="markdown" data-markdown-variant="body">
+   <p><img src="compressed_bunny-girl_1063x1594.jpg" alt="压缩后的图片"></p>
+   <p><img src="/abs/already-absolute.png" alt="绝对"></p>
+   <p><img src="dsh-resource://file/session/s1/sub/nested.png" alt="资源协议"></p>
+   <p><img src="https://cdn.example.com/remote.png" alt="远程"></p>
+   <p><img src="blob:http://127.0.0.1:19387/abc" alt="附件"></p>
+ </div></body></html>`, { url: "http://127.0.0.1:19387/", pretendToBeVisual: true });
+
+const WORKSPACE = "/Users/chen/Documents/deepseek-harness/default-workspace";
+globalThis.ctxRef = {
+  sessions: { list: { getSnapshot: () => ({ byId: { s1: { id: "s1", cwd: WORKSPACE, retainedBy: { mainView: 1 } } } }) } }
+};
+const apiWs = new Function("document", "Node", "Element",
+  extractionSrc + "\n; return { collectImages, authoredImagePath, hostFileMediaUrl };"
+)(wsDom.window.document, wsDom.window.Node, wsDom.window.Element);
+const wsImages = apiWs.collectImages(wsDom.window.document.body);
+delete globalThis.ctxRef;
+
+const fileUrl = (p) => "http://127.0.0.1:19387/api/file?path=" + encodeURIComponent(p);
+check("相对路径补成工作区绝对路径并经 api/file 取图", wsImages[0] && wsImages[0].url, fileUrl(WORKSPACE + "/compressed_bunny-girl_1063x1594.jpg"));
+check("保留页面渲染地址作为备用", wsImages[0] && wsImages[0].altUrl, "http://127.0.0.1:19387/compressed_bunny-girl_1063x1594.jpg");
+check("alt 文案照旧保留", wsImages[0] && wsImages[0].name, "压缩后的图片");
+check("绝对路径直接走 api/file", wsImages[1] && wsImages[1].url, fileUrl("/abs/already-absolute.png"));
+check("dsh-resource 会话地址解析到工作区", wsImages[2] && wsImages[2].url, fileUrl(WORKSPACE + "/sub/nested.png"));
+check("远程 https 图保持原样", wsImages[3] && wsImages[3].url, "https://cdn.example.com/remote.png");
+check("远程图不产生备用地址", wsImages[3] && wsImages[3].altUrl, undefined);
+check("blob 附件保持原样", wsImages[4] && wsImages[4].url, "blob:http://127.0.0.1:19387/abc");
+check("无会话时不臆造工作区路径", apiWs.authoredImagePath("lonely.png", ""), "");
+check("拒绝协议相对地址", apiWs.authoredImagePath("//evil.example.com/x.png", "/ws"), "");
+check("拒绝非文件 scheme", apiWs.authoredImagePath("javascript:alert(1)", "/ws"), "");
+check("./ 前缀被折平", apiWs.authoredImagePath("./shot.png", "/ws"), "/ws/shot.png");
+
+console.log(`
+=== ${pass} passed, ${fail} failed ===`);
 process.exit(fail === 0 ? 0 : 1);
