@@ -302,6 +302,7 @@ dsh-message-forward/
 │   ├── en.json              # English display metadata (title & description)
 │   └── zh.json              # Chinese display metadata (title & description)
 ├── icon.svg                 # Plugin display icon
+├── CHANGELOG.md             # Release history (semantic versioning)
 ├── .agents/notes/           # Agent Notes: landed decisions and rejected alternatives
 └── tests/                   # DOM-contract regression test suites
 ```

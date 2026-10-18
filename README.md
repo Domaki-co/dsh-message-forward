@@ -310,6 +310,7 @@ dsh-message-forward/
 │   ├── en.json              # 英文展示元数据（标题与描述）
 │   └── zh.json              # 中文展示元数据（标题与描述）
 ├── icon.svg                 # 插件展示图标
+├── CHANGELOG.md             # 版本变更记录（按语义化版本）
 ├── .agents/notes/           # Agent Note：已落地决策与备选方案（implemented/feature/…）
 └── tests/                   # 基于真实 DOM 契约的回归测试套件
 ```
