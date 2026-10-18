@@ -60,7 +60,8 @@ function fileMediaUrl(base, path) {
 
 - 模型回复里指向工作区文件 (以及相对路径、`dsh-resource:` 会话地址) 的图片, 复制、移动端分享、转发图片块、草稿附件四条路径都能拿到字节。代价是多一层地址还原逻辑与一条只在主地址失败时才走到的候选读取。
 - 图片字节的四条通道（复制到剪贴板、移动端分享、多模态投递载荷、草稿附件）都按还原后的原路径取字节。
-- **已知限制一**: 转发**正文文本**里的那段 Markdown 仍按 `<img>` 的解析地址生成——`textOf` 取 `img.currentSrc || img.src` 优先于原始属性（`lib/client.js:1775`），于是工作区绝对路径图写作 `api/file?path=%2FUsers%2F...`、模型写的相对路径图写作同源绝对 URL（在目标会话里是 404），并非消息原本写的路径；`buildPromptContent` 里 `body.includes(authored)` 的去重也因此失效，转码回退时同一张图会写两遍。修复方向是优先取原始 `src` 并把 `api/file?path=` 反解回原路径，留待下一轮带断言处理。
-- **已知限制二**: 为保留图片语法，带图节点是 `cloneNode` 之后读 `innerText`（`lib/client.js:1772-1795`）。按 HTML 规范，不在渲染树中的节点其 `innerText` 退化为 `textContent`，因此真实浏览器里同一 markdown 块内的段落换行会并成一行；jsdom 没有 `innerText`，现有断言全部走在 `textContent` 分支上，覆盖不到这一层。
+- 转发**正文文本**里那段 Markdown 也引用消息原本写的地址：`textOf` 走 `authoredSrcOf`（`lib/client.js:1772`）优先读 `<img>` 的 `src` 属性，属性本身是宿主拼的 `api/file?path=` 时反解回工作区路径（`lib/client.js:1787-1817`）。于是工作区图写作模型原本的相对/绝对路径，而不是 `api/file?path=%2FUsers%2F...` 或页面解析出的同源 404 URL；`buildPromptContent` 的 `body.includes(authored)` 去重随之恢复生效（`lib/client.js:2458-2467`），转码回退不会再写第二遍。
+- 读文本不再脱离渲染树：带图节点由「`cloneNode` 后读 `innerText`」改为「图片就地换成文本节点 → 读 `innerText` → `finally` 当轮还原」（`lib/client.js:1787-1822`）。克隆体不在渲染树中时 `innerText` 按规范退化为 `textContent`，段落换行会被并成一行；就地替换保住渲染上下文，替换与还原同处一个同步任务，浏览器不会在中间绘制。
+- 草稿兜底与发送路径统一用 `authored` 引用图片（`lib/client.js:3275-3282`），两条通道不再写两种地址。
 - 用户自发图片 (`blob:`)、外部 https 图的行为不变。
-- 10 个测试套件 564 项断言全绿。新增覆盖: `tests/test-extract.mjs` 的相对路径 / 绝对路径 / `dsh-resource` / 远程图 / blob 图地址还原与拒绝协议相对地址、非文件 scheme; `tests/test-session.mjs` 的正文兜底改用 `authored`。
+- 10 个测试套件 574 项断言全绿。新增覆盖: `tests/test-extract.mjs` 的相对路径 / 绝对路径 / `dsh-resource` / 远程图 / blob 图地址还原、拒绝协议相对地址与非文件 scheme、正文图片语法取原路径与 `api/file` 反解、`data:` 内联图占位、以及用 `Object.defineProperty` 模拟浏览器 `innerText` 断言「读取那一刻图片已被就地换成 markdown、读完原样还回」；`tests/test-session.mjs` 的正文兜底改用 `authored`。

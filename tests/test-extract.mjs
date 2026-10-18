@@ -368,7 +368,7 @@ globalThis.ctxRef = {
   sessions: { list: { getSnapshot: () => ({ byId: { s1: { id: "s1", cwd: WORKSPACE, retainedBy: { mainView: 1 } } } }) } }
 };
 const apiWs = new Function("document", "Node", "Element",
-  extractionSrc + "\n; return { collectImages, authoredImagePath, hostFileMediaUrl };"
+  extractionSrc + "\n; return { collectImages, authoredImagePath, hostFileMediaUrl, textOf, authoredSrcOf };"
 )(wsDom.window.document, wsDom.window.Node, wsDom.window.Element);
 const wsImages = apiWs.collectImages(wsDom.window.document.body);
 delete globalThis.ctxRef;
@@ -386,6 +386,47 @@ check("无会话时不臆造工作区路径", apiWs.authoredImagePath("lonely.pn
 check("拒绝协议相对地址", apiWs.authoredImagePath("//evil.example.com/x.png", "/ws"), "");
 check("拒绝非文件 scheme", apiWs.authoredImagePath("javascript:alert(1)", "/ws"), "");
 check("./ 前缀被折平", apiWs.authoredImagePath("./shot.png", "/ws"), "/ws/shot.png");
+
+// ---- 正文里的图片语法引用消息原路径，且读取期间不破坏渲染上下文 ----
+console.log("\n--- image markdown uses authored src ---");
+const mdDoc = wsDom.window.document;
+const mdBox = (html) => {
+  const box = mdDoc.createElement("div");
+  box.innerHTML = html;
+  return box;
+};
+const relBox = mdBox("<p><img src=\"shot.png\" alt=\"截图\"></p>");
+const relImg = relBox.querySelector("img");
+check("相对路径写进正文就是消息原路径", apiWs.textOf(relBox, true), "![截图](shot.png)");
+check("读完后原文图片元素还回原位", relBox.querySelector("img") === relImg, true);
+check("读完后不残留占位文本", relBox.textContent.indexOf("![") === -1, true);
+
+check("api/file 路由反解回工作区路径",
+  apiWs.textOf(mdBox("<p><img src=\"" + fileUrl("/ws/a.png") + "\" alt=\"工作区图\"></p>"), true),
+  "![工作区图](/ws/a.png)");
+check("内联 data: 图只留占位符",
+  apiWs.textOf(mdBox("<p>内联<img src=\"data:image/png;base64,iVBORw0KGgo=\" alt=\"图\">结束</p>"), true),
+  "内联 [图] 结束");
+check("无 alt 的内联图不留空括号占位",
+  apiWs.textOf(mdBox("<p>前<img src=\"data:image/png;base64,iVBORw0KGgo=\">后</p>"), true),
+  "前后");
+
+// 浏览器里 innerText 按块级元素拼行；jsdom 没有 innerText，用 getter 模拟，并借它记录
+// 「读 innerText 的那一刻」DOM 里的图片是否已被就地换成 markdown（克隆本做不到）。
+const liveBox = mdBox("<p>图：</p><p><img src=\"shot.png\" alt=\"截图\"></p><p>请查收。</p>");
+let seenAtRead = "";
+Object.defineProperty(liveBox, "innerText", {
+  get() {
+    seenAtRead = liveBox.querySelector("img") ? "img-still-there"
+      : (liveBox.textContent.indexOf("![截图](shot.png)") !== -1 ? "swapped" : "missing");
+    return Array.from(liveBox.children).map((c) => c.textContent.trim()).join("\n");
+  }
+});
+const liveText = apiWs.textOf(liveBox, true);
+check("读 innerText 时图片已就地换成 markdown", seenAtRead, "swapped");
+check("innerText 段落换行不被抹平", liveText, "图：\n![截图](shot.png)\n请查收。");
+check("innerText 分支读完后图片恢复", liveBox.querySelector("img") !== null, true);
+check("innerText 分支读完后占位文本消失", liveBox.textContent.indexOf("![") === -1, true);
 
 console.log(`
 === ${pass} passed, ${fail} failed ===`);
