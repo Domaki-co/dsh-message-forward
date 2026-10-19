@@ -207,15 +207,18 @@ check("弹窗包含自定义模板管理卡片", modalSrc.includes("dsh-mf-tpl-c
 check("弹窗渲染自定义模板列表 chip", /customTemplates\.map/.test(modalSrc), true);
 check("弹窗提供管理模板按钮", modalSrc.includes('t("modal.manageTemplates")'), true);
 check("缩略图包裹在 thumb-wrap 内", modalSrc.includes("dsh-mf-thumb-wrap"), true);
-check("缩略图上挂载复制按钮", modalSrc.includes("dsh-mf-thumb-copy"), true);
-check("复制按钮接通 copyImageToClipboard", modalSrc.includes("copyImageToClipboard(img.url, img.altUrl)"), true);
-check("复制按钮包含 CopyIcon", modalSrc.includes("CopyIcon"), true);
 
-// 词表与样式验证
-check("词表含图片复制文案", api.MF_ZH["modal.copyImage"] === "复制图片" && api.MF_EN["modal.copyImage"] === "Copy image", true);
-check("词表含复制成功提示", api.MF_ZH["notify.imageCopied"] === "图片已复制到剪贴板" && api.MF_EN["notify.imageCopied"] === "Image copied to clipboard", true);
-check("缩略图复制按钮样式存在", src.includes(".dsh-mf-thumb-copy"), true);
-check("模板管理卡片样式存在", src.includes(".dsh-mf-tpl-card"), true);
+// 缩略图单任务原则验证：只保留删除/排除按钮，移除干扰复制与下载
+check("缩略图上挂载唯一的删除按钮", modalSrc.includes("dsh-mf-thumb-del"), true);
+check("缩略图删除按钮接通 handleDeleteImage 并包含 CloseIcon",
+	modalSrc.includes("handleDeleteImage(i)") && modalSrc.includes("CloseIcon"), true);
+check("缩略图不再混入保存与复制按钮",
+	!modalSrc.includes("dsh-mf-thumb-copy") && !modalSrc.includes("dsh-mf-thumb-save"), true);
+check("重置原文恢复原始图片列表",
+	modalSrc.includes('kind === "reset"') && modalSrc.includes("setImages(payload.images ? [...payload.images] : [])"), true);
+check("词表含图片删除文案",
+	api.MF_ZH["modal.deleteImage"] === "删除图片" && api.MF_EN["modal.deleteImage"] === "Remove image", true);
+check("缩略图删除按钮样式存在", src.includes(".dsh-mf-thumb-del"), true);
 
 // 模板管理表单演进与输入多行增强
 check("模板提示语升级为 textarea 支持多行输入", modalSrc.includes("dsh-mf-tpl-textarea"), true);
@@ -230,8 +233,20 @@ check("词表包含模板同名校验提示",
 	api.MF_EN["notify.templateNameDuplicate"] === "A template with this name already exists", true);
 check("弹窗重新打开时重置模板管理状态",
 	modalSrc.includes("setTemplateManagerOpen(false)") && modalSrc.includes('setNewTplName("")'), true);
-check("缩略图点击支持移动端 Web Share 直发微信（带降级剪贴板）",
-	modalSrc.includes("shareImageMobile(img.url, img.name, img.altUrl)"), true);
+
+// 图片右键快捷菜单能力验证
+check("右键快捷菜单组件存在", src.includes("function ImageContextMenu()"), true);
+check("右键快捷菜单包含保存/复制/转发项",
+	src.includes('t("menu.saveImage")') && src.includes('t("menu.copyImage")') && src.includes('t("menu.forwardImage")'), true);
+check("词表含右键菜单中英文案",
+	api.MF_ZH["menu.saveImage"] === "保存原图" && api.MF_EN["menu.saveImage"] === "Save original image" &&
+	api.MF_ZH["menu.copyImage"] === "复制图片" && api.MF_EN["menu.copyImage"] === "Copy image" &&
+	api.MF_ZH["menu.forwardImage"] === "转发此图片" && api.MF_EN["menu.forwardImage"] === "Forward image", true);
+check("右键快捷菜单样式存在",
+	src.includes(".dsh-mf-context-menu") && src.includes(".dsh-mf-context-menu-item"), true);
+check("右键监听与大屏原图/查看器识别接通",
+	src.includes("function setupImageContextMenu()") && src.includes("findContextImage"), true);
 
 console.log(`\n=== ${pass} passed, ${fail} failed ===`);
 process.exit(fail === 0 ? 0 : 1);
+

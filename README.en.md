@@ -107,7 +107,11 @@ Why:
 ### 6. Multimodal Image Support
 Images within extracted messages are captured, converted to standard Base64 payloads, and packaged alongside text for multimodal delivery. Unreachable or broken images are gracefully skipped with a Toast notification detailing the skipped count. In draft mode, images are routed through the attachment channel as genuine attachments.
 
-- **One-click Thumbnail Image Copying to Clipboard**: Hover over any image thumbnail in the forward modal to copy the image directly to the system clipboard as a standard PNG binary bitmap (solving DSH's native limitation of copying only file names). Paste seamlessly (`Ctrl+V / Cmd+V`) into external applications like WeChat, Slack, Word, or Notion.
+- **Right-Click Context Menu on Full-Screen / In-Chat Images**: Right-clicking on any image in the chat stream or in the full-screen image viewer (lightbox/modal) brings up a frosted-glass context menu:
+  - **Save Original Image**: Downloads the uncompressed, original format and size of the physical image directly to disk (solving the lack of right-click options in DSH Electron desktop client and bypassing overlay obstructions on the web);
+  - **Copy Image**: Transcodes and copies the image directly to the system clipboard (on mobile, prioritizes native Web Share sheets);
+  - **Forward Image**: Pre-loads the selected image into the forward modal to instantly relay it to other sessions.
+- **Selective Thumbnail Removal / Deletion (Single-Task Focus)**: In accordance with the single-responsibility principle, forward modal thumbnails feature exclusively a clean "Remove Image" (`❌`) action. Easily exclude unwanted images from the forwarding payload without cluttering 62×62px cards. The header image counter updates in real time, and excluded images are omitted from drafts and downstream payloads. Click "Reset original" to restore the full image list at any time.
 
 ---
 

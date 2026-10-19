@@ -168,11 +168,11 @@ if (mobile) {
   ok("mobile enlarges standalone close buttons to 44px",
     !!close && /width:\s*44px/.test(close[1]) && /height:\s*44px/.test(close[1]));
 
-  // 缩略图复制按钮在手机端保持常显，且触控热区由伪元素撑到 44x44
-  const thumbCopy = rule(".dsh-mf-thumb-copy");
-  ok("mobile keeps thumbnail copy button fully visible without hover", /opacity:\s*1/.test(thumbCopy));
-  ok("mobile enlarges thumbnail copy button hit area to 44x44",
-    /\.dsh-mf-thumb-copy::after/.test(mobile) && /width:\s*44px/.test(mobile) && /height:\s*44px/.test(mobile));
+  // 缩略图删除按钮在手机端保持常显，且触控热区由伪元素撑到 44x44
+  const thumbDel = rule(".dsh-mf-thumb-del");
+  ok("mobile keeps thumbnail delete button fully visible without hover", /opacity:\s*1/.test(thumbDel));
+  ok("mobile enlarges thumbnail delete button hit area to 44x44",
+    /\.dsh-mf-thumb-del::after/.test(mobile) && /width:\s*44px/.test(mobile) && /height:\s*44px/.test(mobile));
 
   // Bar buttons are text buttons; the floor is on min-height. They share a grouped
   // rule with .dsh-mf-bar-count-btn, so match either selector in the list.
