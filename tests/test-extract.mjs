@@ -428,6 +428,110 @@ check("innerText 段落换行不被抹平", liveText, "图：\n![截图](shot.pn
 check("innerText 分支读完后图片恢复", liveBox.querySelector("img") !== null, true);
 check("innerText 分支读完后占位文本消失", liveBox.textContent.indexOf("![") === -1, true);
 
+// --- 提取边界的 issues 通道：结构漂移要报，本来就空的不得报 -----------------
+// EXTRACT_ISSUES 是模块级状态，所以另开一个模块作用域单独数，不受上面的断言影响。
+const driftDom = new JSDOM(`<!doctype html><html><body>
+<div data-conversation-scroll>
+ <div class="icaHSq_column">
+  <div data-chat-flow-kind="user" data-chat-turn="1">
+    <div class="IzP3Va_userRow"><div class="IzP3Va_bubble">第一问</div></div>
+  </div>
+  <div data-chat-flow-kind="assistant-step" data-chat-turn="1">
+    <div class="markdown" data-markdown-variant="body">第一答</div>
+  </div>
+  <div data-chat-flow-kind="turn-tail" data-chat-turn="1">
+    <div data-turn-tail="1"><div class="ppByMG_actions" data-clock="end"><button>copy</button></div></div>
+  </div>
+  <div data-chat-flow-kind="user" data-chat-turn="2">
+    <div class="IzP3Va_userRow"><div class="IzP3Va_bubble">第二问</div></div>
+  </div>
+  <div data-chat-flow-kind="turn-tail" data-chat-turn="2">
+    <div data-turn-tail="2"><div class="ppByMG_actions" data-clock="end"><button>copy</button></div></div>
+  </div>
+  <div data-chat-flow-kind="user" data-chat-turn="3">
+    <div class="IzP3Va_userRow">
+      <div class="IzP3Va_bubble"></div>
+      <div class="ppByMG_actions" data-clock="start"><button>copy</button></div>
+    </div>
+  </div>
+  <div data-chat-flow-kind="turn-tail" data-chat-turn="3">
+    <div data-turn-tail="3"><div class="ppByMG_actions" data-clock="end"><button>copy</button></div></div>
+  </div>
+  <div data-chat-flow-kind="user" data-chat-turn="4">
+    <div class="IzP3Va_userRow"><div class="IzP3Va_bubble">第四问</div></div>
+  </div>
+  <div data-chat-flow-kind="assistant-step" data-chat-turn="4">
+    <div class="markdown" data-markdown-variant="body"></div>
+  </div>
+  <div data-chat-flow-kind="assistant-step" data-chat-turn="4">
+    <div class="markdown" data-markdown-variant="body"></div>
+  </div>
+  <div data-chat-flow-kind="turn-tail" data-chat-turn="4">
+    <div data-turn-tail="4"><div class="ppByMG_actions" data-clock="end"><button>copy</button></div></div>
+  </div>
+  <div data-chat-flow-kind="user" data-chat-turn="5">
+    <div class="IzP3Va_userRow"><div class="IzP3Va_bubble">第五问</div></div>
+  </div>
+  <div data-chat-flow-kind="turn-process" data-chat-turn="5" data-chat-group-part="reasoning">
+    <div data-variant="think"><div class="HiSsxa_thinkBody">先想一想</div></div>
+  </div>
+  <div data-chat-flow-kind="turn-tail" data-chat-turn="5">
+    <div data-turn-tail="5"><div class="ppByMG_actions" data-clock="end"><button>copy</button></div></div>
+  </div>
+ </div>
+</div>
+</body></html>`, { pretendToBeVisual: true });
+
+const driftWin = driftDom.window;
+const driftApi = new Function(
+  "document", "Node", "Element",
+  extractionSrc + "\n; return { extractAssistantFromAnchor, extractLastAssistantTurn, extractUserFromContainer, takeExtractionIssues };"
+)(driftWin.document, driftWin.Node, driftWin.Element);
+
+const tailOf = (n) => driftWin.document.querySelector(`[data-turn-tail="${n}"]`);
+const codesOf = (list) => list.map((item) => item.code).sort().join(",");
+
+// 正向：结构完好的一轮不产生任何 issue（提示零噪声的前提）
+check("结构完好的回合提取得出正文", driftApi.extractAssistantFromAnchor(tailOf(1)).text, "第一答");
+check("结构完好时不报 issue（无可报问题＝零 UI 变化）", codesOf(driftApi.takeExtractionIssues()), "");
+
+// (a) 锚点在、回合里没有任何内容行 → 必须报
+check("(a) 回合里没有内容行时提取得出空正文", driftApi.extractAssistantFromAnchor(tailOf(2)).text, "");
+const driftA = driftApi.takeExtractionIssues();
+check("(a) 回合里没有内容行 → 报 no-turn-nodes", codesOf(driftA), "no-turn-nodes");
+check("(a) 同一轮提取里同类问题只留一条", driftA.length, 1);
+check("(a) 取走一次后通道清空（提示只对这一次转发负责）", codesOf(driftApi.takeExtractionIssues()), "");
+
+// (a) 锚点根本不在任何消息行里 → 必须报
+const orphanAnchor = driftWin.document.createElement("button");
+check("(a) 锚点不在消息行里时提取得出空正文", driftApi.extractAssistantFromAnchor(orphanAnchor).text, "");
+check("(a) 锚点丢失 → 同时报 anchor-off-row 与 no-turn-nodes", codesOf(driftApi.takeExtractionIssues()), "anchor-off-row,no-turn-nodes");
+
+driftApi.extractAssistantFromAnchor(null);
+check("(a) 锚点为 null → 报 anchor-missing", codesOf(driftApi.takeExtractionIssues()), "anchor-missing");
+
+// (b) 用户发了空消息：锚点、容器都在，只是正文为空 → 不得报
+const emptyUserActions = driftWin.document.querySelector('[data-chat-turn="3"] [data-clock="start"]');
+const emptyUser = driftApi.extractUserFromContainer(emptyUserActions);
+check("(b) 空消息的正文就是空串", emptyUser.text, "");
+check("(b) 空消息不报结构漂移（反向断言）", codesOf(driftApi.takeExtractionIssues()), "");
+
+// (c) 正文节点在、却取不到文本 → 必须报
+check("(c) 空 markdown 提取得出空正文", driftApi.extractAssistantFromAnchor(tailOf(4)).text, "");
+const driftC = driftApi.takeExtractionIssues();
+check("(c) 有正文节点但文本为空 → 报 text-nodes-empty", codesOf(driftC), "text-nodes-empty");
+check("(c) 两个空正文节点合并成一条提示", driftC.length, 1);
+check("(c) 提示里带上节点数", driftC[0] && driftC[0].detail && driftC[0].detail.blocks, 1);
+
+// (b) 模型只产出思考链：行还在、只是被剔除干净 → 不得报
+const thinkOnly = driftApi.extractAssistantFromAnchor(tailOf(5));
+check("(b) 只有思考链时正文为空", thinkOnly.text, "");
+check("(b) 只有思考链不报结构漂移（反向断言）", codesOf(driftApi.takeExtractionIssues()), "");
+
+// 逐条回退时，中途那些「取不到」的尝试只是中间步骤，不该升级成告警
+const lastTurn = driftApi.extractLastAssistantTurn();
+check("最后一条取不到时向前回退到有内容的一条", lastTurn.text, "第一答");
+check("回退途中的中间取证不升级成告警", codesOf(driftApi.takeExtractionIssues()), "");
 console.log(`
 === ${pass} passed, ${fail} failed ===`);
 process.exit(fail === 0 ? 0 : 1);

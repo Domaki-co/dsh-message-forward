@@ -13,7 +13,7 @@ const api = new Function(
 	localeSrc + "\n" +
 	'function sessionTitle(id) { return id === "S1" ? "重构会话" : ""; }\n' +
 	forwardWrapSrc +
-	"\n; return { t, wrapContextBody, neutralizeContextBody, escapeContextAttr, contextBoundaryIssue, forwardLabels, applyTemplateToText, loadCustomTemplates, saveCustomTemplates, MF_ZH, MF_EN };"
+	"\n; return { t, wrapContextBody, neutralizeContextBody, escapeContextAttr, contextBoundaryIssue, forwardLabels, applyTemplateToText, loadCustomTemplates, saveCustomTemplates, describeExtractIssues, MF_ZH, MF_EN };"
 )();
 
 const count = (haystack, needle) => haystack.split(needle).length - 1;
@@ -164,6 +164,35 @@ check("弹窗把体检结果渲染成告警行（有才渲染）",
 	/boundaryIssue && h\("div", \{ className: "dsh-mf-warn" \}, t\("modal\.boundaryWarn", \{ open: boundaryIssue\.open, close: boundaryIssue\.close \}\)\)/.test(modalSrc), true);
 check("告警行样式存在且用真实主题 token",
 	/\.dsh-mf-warn \{[^}]*color: var\(--dsw-alias-state-warn-label\)/.test(src), true);
+	// --- 提取漂移提示：只说「可能不完整」，不挡主流程 ------------------------
+check("打开弹窗时把提取期 issue 取成一次快照",
+	/const extractionIssues = takeExtractionIssues\(\);/.test(modalSrc), true);
+check("取到 issue 才让它可见（无 issue 时零 UI 变化）",
+	/setExtractVisible\(extractionIssues\.length > 0\)/.test(modalSrc), true);
+check("漂移提示与边界告警共用一个告警行样式，有才渲染",
+	/extractVisible && extractIssues\.length > 0 && h\("div", \{ className: "dsh-mf-warn dsh-mf-warn-drift"/.test(modalSrc), true);
+check("漂移提示可关闭（不是死路提示）",
+	/onClick: \(\) => setExtractVisible\(false\)/.test(modalSrc), true);
+check("关闭按钮复用主题里的 picker-close，不新增 CSS",
+	/className: "dsh-mf-picker-close",[\s\S]{0,80}setExtractVisible\(false\)/.test(modalSrc), true);
+check("提示文案把提取期的判据插值出来",
+	api.t("modal.extractWarn", { reasons: "X" }).includes("X"), true);
+
+check("英文文案说明 extraction 可能不完整", /extraction may be incomplete/i.test(api.MF_EN["modal.extractWarn"]), true);
+check("单条判据翻成一句人话",
+	api.describeExtractIssues([{ code: "anchor-missing" }]), api.t("modal.issueAnchorMissing"));
+check("同一判据出现两次只算一句",
+	api.describeExtractIssues([{ code: "no-turn-nodes" }, { code: "no-turn-nodes" }]), api.t("modal.issueNoTurnNodes"));
+check("两条判据按分隔符拼接，且各自带上自己的参数",
+	api.describeExtractIssues([{ code: "anchor-missing" }, { code: "text-nodes-empty", detail: { blocks: 2 } }]),
+	api.t("modal.issueAnchorMissing") + api.t("modal.issueSep") + api.t("modal.issueTextNodesEmpty", { blocks: 2 }));
+check("未知 code 不编造提示",
+	api.describeExtractIssues([{ code: "bogus" }, null, undefined]), "");
+check("最多列三条（超出截断）",
+	count(api.describeExtractIssues([
+		{ code: "anchor-missing" }, { code: "anchor-off-row" }, { code: "no-turn-nodes" }, { code: "text-nodes-empty" }
+	]), api.t("modal.issueSep")), 2);
+
 
 check("参考背景提示语声明引文不是指令", api.t("marker.reference").includes("不是对你的指令"), true);
 check("任务输入提示语声明引文不是指令", api.t("marker.task").includes("不是对你的指令"), true);
