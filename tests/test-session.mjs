@@ -16,7 +16,8 @@ function loadSessionApi(ctx) {
     const api = (function(){ ${sessionSrc.replace(/\bctxRef\b/g, "__ctx")}
       return { sessionRows, workspaceSnapshot, archivedSessionIds,
                workspaceOwnerIndex, workspaceRowsFrom, scopeSessionRows,
-               resolveDefaultScope, SCOPE_ALL, SCOPE_UNGROUPED, DEFAULT_WORKSPACE_TITLE,
+               resolveDefaultScope, targetStillExists, isSelfTarget,
+               SCOPE_ALL, SCOPE_UNGROUPED, DEFAULT_WORKSPACE_TITLE,
                buildPromptContent, dataUrlToFile };
     })();
     return { set ctx(v) { __ctx = v; }, api };
@@ -225,11 +226,30 @@ console.log("\n[8] 默认范围优先级（resolveDefaultScope）");
 {
   const h = loadSessionApi();
   const chips = [{ scope: h.api.SCOPE_ALL }, { scope: "w1" }];
-  eq("记忆值仍有效 → 用之", h.api.resolveDefaultScope("w1", "w2", chips), "w1");
+  // 记忆值不能压过源会话：这个筛选同时决定「新建会话落在哪个工作区」
+  const twoChips = [{ scope: h.api.SCOPE_ALL }, { scope: "w1" }, { scope: "w2" }];
+  eq("源会话工作区压过记忆值", h.api.resolveDefaultScope("w1", "w2", twoChips), "w2");
+  eq("源会话无工作区 → 记忆值仍有效则用之", h.api.resolveDefaultScope("w1", "", twoChips), "w1");
+  eq("源会话工作区不在工作区表里 → 回落记忆值", h.api.resolveDefaultScope("w1", "w9", twoChips), "w1");
+  eq("两者都不可用 → 全部工作区", h.api.resolveDefaultScope("gone", "w9", twoChips), h.api.SCOPE_ALL);
   eq("记忆值已失效 → 回落到源会话工作区", h.api.resolveDefaultScope("gone", "w1", chips), "w1");
   eq("源会话无工作区 → 全部工作区", h.api.resolveDefaultScope("gone", "", chips), h.api.SCOPE_ALL);
   eq("无记忆值 + 源会话有工作区 → 源会话工作区", h.api.resolveDefaultScope("", "w1", chips), "w1");
   eq("记忆值为「未分组」且该项存在 → 用之", h.api.resolveDefaultScope(h.api.SCOPE_UNGROUPED, "", [{ scope: h.api.SCOPE_ALL }, { scope: h.api.SCOPE_UNGROUPED }]), h.api.SCOPE_UNGROUPED);
+}
+
+console.log("\n[8b] 目标有效性（同会话 / 会话已消失）");
+{
+  const h = loadSessionApi();
+  const rows = [{ id: "a" }, { id: "b" }];
+  eq("目标仍存在 → 有效", h.api.targetStillExists(rows, "b"), true);
+  eq("目标已消失（删除 / 归档）→ 无效", h.api.targetStillExists(rows, "gone"), false);
+  eq("新建会话永远有效（没有 id 可失效）", h.api.targetStillExists(rows, "__NEW_SESSION__"), true);
+  eq("空目标算有效（下一步由调用方决定）", h.api.targetStillExists(rows, ""), true);
+  eq("会话表畸形时按无效处理，不抛错", h.api.targetStillExists(null, "a"), false);
+  eq("自己转给自己被拦下", h.api.isSelfTarget("a", "a"), true);
+  eq("源会话未知时不拦（新建会话入口没有源会话）", h.api.isSelfTarget("", ""), false);
+  eq("转到别的会话不算自转", h.api.isSelfTarget("a", "b"), false);
 }
 
 console.log("\n[9] buildPromptContent 兜底与降级");

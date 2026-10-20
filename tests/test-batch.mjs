@@ -1,10 +1,11 @@
 // Verify the batch multi-select path (collectUnits / unitIdForNode / mergeUnits) against the same DOM.
-import { batchUnitsSrc, extractionSrc as extractionSlice, localeSrc, src } from "./_source.mjs";
+import { batchUnitsSrc, extractionSrc as extractionSlice, localeSrc, src, storeSrc } from "./_source.mjs";
 import { loadJsdom } from "./_deps.mjs";
 
 const JSDOM = await loadJsdom("test-batch.mjs");
 
-const extractionSrc = localeSrc + "\n" + extractionSlice;
+// batchStore 在 store 段：选中态绑会话、会话根都记在它上面，不进作用域就没法验
+const extractionSrc = localeSrc + "\n" + storeSrc + "\n" + extractionSlice;
 
 // collectUnits / unitIdForNode / mergeUnits live after the session section; the shared slice
 // starts at the section header so the snippet helpers (toSnippet / unitSnippet) come along too.
@@ -37,16 +38,30 @@ const dom = new JSDOM(`<!doctype html><html><body>
      <div class="ppByMG_actions" data-clock="end"><button id="b2" class="dsh-mf-btn">f</button></div>
    </div>
  </div>
+</div></div>
+<div data-conversation-scroll id="pane2"><div class="icaHSq_column">
+ <div class="icaHSq_flowItem" data-chat-flow-key="x1" data-chat-flow-kind="user" data-chat-turn="9">
+   <div class="IzP3Va_userRow"><div class="IzP3Va_bubble">另一个会话里的提问</div>
+   <div class="ppByMG_actions" data-clock="start"><button>c</button></div></div>
+ </div>
+ <div class="icaHSq_flowItem" data-chat-flow-key="xt1" data-chat-flow-kind="turn-tail" data-chat-turn="9">
+   <div class="TurnTailNodeView_root" data-turn-tail="9" data-actions-reveal="always">
+     <div class="ppByMG_actions" data-clock="end"><button id="bx" class="dsh-mf-btn">f</button></div>
+   </div>
+ </div>
 </div></div></body></html>`, { pretendToBeVisual: true });
 
 const w = dom.window;
 globalThis.document = w.document;
 globalThis.Node = w.Node;
 
-const api = new Function("document", "Node", "Element",
+/** 会话表 stub：liveSessionId() 读的就是它，「切换会话」= 换掉 getSnapshot */
+const ctx = { sessions: { list: { getSnapshot: () => ({ byId: { s1: { id: "s1", retainedBy: { mainView: 1 } } } }) } } };
+
+const api = new Function("document", "Node", "Element", "ctxRef",
   extractionSrc + "\n" + batchSrc +
-  "\n; return { collectUnits, unitIdForNode, mergeUnits, toSnippet, unitSnippet, PICK_TEXT_MAX, snippetCache };"
-)(w.document, w.Node, w.Element);
+  "\n; return { collectUnits, unitIdForNode, mergeUnits, toSnippet, unitSnippet, PICK_TEXT_MAX, snippetCache, batchStore, batchScope, ensureBatchSession, invalidateSelection, liveSessionId, forwardStore, t, resetSelectionCache };"
+)(w.document, w.Node, w.Element, ctx);
 
 let pass = 0, fail = 0;
 const check = (name, got, want) => {
@@ -134,6 +149,46 @@ check("cache is keyed by unit id", api.snippetCache.get("test:cache"), "缓存�
 // getSnapshot 抛错时不能把面板整个带崩
 const brokenUnit = { id: "test:broken", role: "user", getSnapshot: () => { throw new Error("boom"); } };
 check("a throwing getSnapshot degrades to empty string", api.unitSnippet(brokenUnit), "");
+
+// ---------- 会话根隔离：分屏时两段对话同时挂着 ----------
+console.log("\n[scope] 采集只发生在当前会话根内");
+const paneOne = w.document.querySelector("[data-conversation-scroll]");
+const paneTwo = w.document.getElementById("pane2");
+check("两个面板同时挂载", Boolean(paneOne && paneTwo), true);
+check("默认根取滚动容器，不含另一个面板的单元", api.collectUnits().map((u) => u.id), ["u:u1", "a:1", "u:u2", "a:2"]);
+check("显式根只收该根内的单元", api.collectUnits(paneTwo).map((u) => u.id), ["u:x1", "a:9"]);
+check("两个面板的单元 id 不会互相覆盖",
+  api.unitIdForNode(w.document.querySelector("#pane2 [class*='userRow']")), null);
+check("捕获了会话根就按根采集", (api.batchStore.set({ root: paneTwo }), api.collectUnits().length), 2);
+api.batchStore.set({ root: null });
+check("另一个面板里的按钮不属于当前多选", api.unitIdForNode(w.document.getElementById("bx")), null);
+
+// ---------- 选中态绑定会话身份 ----------
+console.log("\n[bind] 切过会话，选中态必须作废");
+api.batchStore.set({ isActive: true, liveSessionId: "s1", sessionId: "s1", root: null, selectedIds: new Set(["u:u1"]) });
+api.resetSelectionCache();
+check("同一会话：选择原样保留", (api.ensureBatchSession(), api.batchStore.state.selectedIds.size), 1);
+check("同一会话：不发提示", api.forwardStore.state.toast, null);
+
+// 造一份「看起来还选着」的残留：勾选框 + 行高亮
+const rowEl = paneOne.querySelector("[class*='userRow']");
+rowEl.classList.add("dsh-mf-unit-selected");
+const boxEl = w.document.createElement("div");
+boxEl.className = "dsh-mf-check selected";
+boxEl.setAttribute("aria-checked", "true");
+rowEl.appendChild(boxEl);
+
+ctx.sessions.list.getSnapshot = () => ({ byId: { s2: { id: "s2", retainedBy: { mainView: 1 } } } });
+check("切过会话：多选整体作废", (api.ensureBatchSession(), api.batchStore.state.selectedIds.size), 0);
+check("作废时给出可解释的提示",
+  api.forwardStore.state.toast && api.forwardStore.state.toast.text, api.t("notify.batchSessionChanged"));
+check("会话身份改绑到新会话", [api.batchStore.state.sessionId, api.batchStore.state.liveSessionId], ["s2", "s2"]);
+check("勾选框的视觉选中态一并回滚",
+  [boxEl.classList.contains("selected"), boxEl.getAttribute("aria-checked")], [false, "false"]);
+check("行高亮一并回滚", rowEl.classList.contains("dsh-mf-unit-selected"), false);
+check("作废之后合并不出内容", api.mergeUnits(api.collectUnits(paneOne), api.batchStore.state.selectedIds).count, 0);
+api.forwardStore.set({ toast: null });
+check("同一会话反复校验只提示一次", [api.ensureBatchSession(), api.forwardStore.state.toast], [false, null]);
 
 console.log(`\n=== ${pass} passed, ${fail} failed ===`);
 process.exit(fail === 0 ? 0 : 1);
