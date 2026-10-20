@@ -236,7 +236,7 @@ Audited against the DSH `cordis-plugin-development` specification:
 Run the automated regression test suite:
 
 ```bash
-node tests/run.mjs        # 10 suites, 490 assertions
+node tests/run.mjs        # 10 suites, 608 assertions
 ```
 
 > `run.mjs` treats skipped suites as failures by default to prevent dependency blind spots. Use `--allow-skip` only when intentionally bypassing specific local environments.
@@ -254,6 +254,17 @@ node tests/run.mjs        # 10 suites, 490 assertions
 | `test-decorator.mjs` | Multi-select decorator behavior, gutter layout, `role="checkbox"`, and teardown cleanliness. |
 | `test-primitives.mjs` | SSR rendering and props contracts for custom `Mf*` components. |
 | `test-entry.mjs` | End-to-end activation: mocks `ModuleLoader` and Cordis context, verifies slot registration, DOM injection, and full teardown. |
+
+### Host Contract Drift Check (not part of `run.mjs`)
+
+All ten suites above run against the DOM contract replicated inside this repo — rename an attribute in the host and they stay green. `tests/host-drift.mjs` closes that gap: it builds no DOM, reads the **installed host bundle** directly, and verifies every identifier the plugin actually depends on, alongside the host version and its place in the compatibility matrix.
+
+```bash
+node tests/host-drift.mjs                # or: npm run check:host
+node tests/host-drift.mjs --self-test    # self-check: synthetic complete / broken bundles must yield exit 0 / 1
+```
+
+It is not wired into `run.mjs` because it needs an installed host; without one it prints `SKIP` and exits 0 (which is what CI and machines without the desktop app will see). Levels and exit codes: [tests/README.md](tests/README.md).
 
 To run DOM-dependent suites locally:
 
@@ -278,8 +289,24 @@ For more details, see [tests/README.md](tests/README.md).
 
 ## Compatibility & Host Environment
 
-- **Supported DSH Releases**: `>=0.2.0-rc.1 <0.3.0-0`, explicitly verified and compatible with `0.2.0-rc.1`, `0.2.0-rc.2` (current official desktop application release), and core engine previews `0.2.1-alpha.1` through `0.2.1-alpha.4`.
+- **Supported DSH Releases**: `>=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-0 <0.3.0-0`. That range states what is *expected* to work; per-release verification is recorded separately in `package.json` under `dsh.compatibility.dshReleases` (currently `0.2.0-rc.1`, `0.2.0-rc.2` and core previews `0.2.1-alpha.1` through `0.2.1-alpha.4`). A release missing from the matrix is not known-broken — it simply has not been checked release by release.
 - **Pure Client Architecture**: Runs entirely as a DSH Client plugin in Webview/browser contexts with no private Node.js kernel bindings, ensuring seamless cross-release stability.
+
+### Checking Host Compatibility Before a Release
+
+The plugin locates every message row through DOM attributes the host renders (see "DOM Contract & Traversal" above). When the host is refactored those attributes can be renamed silently: nothing throws, the plugin just forwards fewer rows or the wrong ones — and the `tests/` suites, running against a replicated DOM, cannot see it. So before declaring any host release compatible, run this against that host:
+
+```bash
+node tests/host-drift.mjs    # exit 0 = no hard dependency drift; 1 = drift; SKIP + exit 0 when no host is installed
+```
+
+It reads `/Applications/DeepSeek Harness.app/Contents/Resources/app.asar` (override with `DSH_HOST_ASAR`), then prints the host version, that version's status in `dshReleases`, and a PASS / DRIFT / MISS line per contract.
+
+Listing a release in `dsh.compatibility.dshReleases` requires all three; otherwise it stays an "expected to work" range entry only:
+
+1. `node tests/host-drift.mjs` exits 0 against that host (proves the DOM-contract axis only);
+2. The core flows were exercised by hand in the real host: single-message forwarding, multi-select merge, all three delivery modes, user-message action row injection, light and dark themes;
+3. `npm test` is fully green.
 
 ---
 

@@ -51,6 +51,27 @@ cd tests && npm i --no-save jsdom react@18 react-dom@18
 | `test-primitives.mjs` | 自有原语 `MfButton` / `MfInput` / `MfModal` / `MfToast` / `MfTooltip` 的 props 契约与渲染标记（`dsh-mf-button-*` 等），用 `react-dom/server` 而不是靠读源码 |
 | `test-entry.mjs` | **端到端入口（唯一调 `apply()` 的套件）**：用 stub 的 `window.__ModuleLoader__` 接住整个浏览器产物，用 mock ctx 调 `apply()`，检查槽位 / 命令 / 词表登记、`ctx.effect` 都返回清理函数、注入的转发按钮与多选勾选框在真实 DOM 契约下生效、**卸载后不留残留且迟到的防抖定时器不能复活装饰** |
 
+## 宿主契约漂移检测（`host-drift.mjs`，不在 `run.mjs` 里）
+
+上面 10 套全部跑在本仓复刻的 DOM 契约上：宿主把 `data-chat-flow-kind` 改成别的名字，它们照样全绿。
+`host-drift.mjs` 补的正是这个缺口——它不造 DOM，直接读**装着的那份宿主 bundle**
+（`/Applications/DeepSeek Harness.app/Contents/Resources/app.asar`，可用 `DSH_HOST_ASAR` 覆盖），
+按 `lib/client.js` 真正引用的地方逐条核对标识符是否还在。
+
+- 分级决定是否影响退出码：`required` / `enum` 缺失 → exit 1；`fallback` / `canary` 缺失 → 只告警，exit 仍为 0。
+  `required` 是核心路径上没有等价替代的属性（行枚举、用户消息注入点、思考链排除）；
+  `enum` 是 `data-chat-flow-kind` 的 6 个取值（缺一个就认错行）；
+  `fallback` 是只出现在 OR 兜底选择器里的分支（插件还有别的分支可用，如 `data-image-viewer`）；
+  `canary` 是构建期哈希类名，变化本身不是故障（插件用 `[class*=…]` 子串匹配），
+  但说明宿主重新构建过、需要复核。
+- 证据列给出命中次数与插件侧引用行号。`data-clock=start` 这类值来自变量的属性用 ±300 字节
+  邻近窗口判定——宿主写的是 `"data-clock": clock` 加 `clock === "start"`，不是连写字符串；
+  `data-variant=think` 同理（宿主是 JSX 属性对 `"data-variant": "think"`）。
+- 宿主不存在时打印 `SKIP` 并 exit 0：CI 与没装桌面客户端的机器上就该是这样。
+- `--self-test` 合成两份 asar（一份齐全、一份缺 `data-variant=think`）并断言退出码分别是 0 / 1，
+  另外验证宿主缺失时确实 SKIP——防止这道门哪天悄悄变成永远绿。
+- 它只覆盖 DOM 契约这一条轴。exit 0 **不等于**「整插件兼容」：API、生命周期、主题样式都不在检测范围内。
+
 ## 源码切片（`tests/_source.mjs`）
 
 套件不直接 `indexOf` + `slice` 取 `lib/client.js` 的段落：`_source.mjs` 用 `lib/client.js` 里的

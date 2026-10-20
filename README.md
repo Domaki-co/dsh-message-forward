@@ -244,7 +244,7 @@ DSH 会将同一个 `assistant-step` 渲染**两次**，通过 `groupPart` 进�
 运行完整自动化回归测试套件：
 
 ```bash
-node tests/run.mjs        # 10 个套件，共 490 项断言
+node tests/run.mjs        # 10 个套件，共 608 项断言
 ```
 
 > `run.mjs` 默认将任何跳过的套件（SKIP）判定为执行失败，以杜绝依赖缺失导致的覆盖率盲区。仅在明确需要调试特定环节时使用 `--allow-skip` 放行。
@@ -262,6 +262,17 @@ node tests/run.mjs        # 10 个套件，共 490 项断言
 | `test-decorator.mjs` | 多选装饰器：装订线注入、定位属性精确还原、无障碍属性（`role=checkbox`）、卸载自清洁 |
 | `test-primitives.mjs` | 自研组件（`MfButton`、`MfModal` 等）Props 契约与 SSR 渲染标记 |
 | `test-entry.mjs` | 端到端集成：验证插件在 Mock 模块加载器与 Cordis 上下文中的装配、注册与彻底卸载 |
+
+### 宿主契约漂移检测（不在 `run.mjs` 里）
+
+上面 10 个套件跑的全是本仓复刻的 DOM 契约，宿主把属性改名它们照样全绿。`tests/host-drift.mjs` 补这一块：它不造 DOM，直接读**装着的那份宿主 bundle**，逐条核对插件真正依赖的标识符，并打印宿主版本与兼容矩阵的关系。
+
+```bash
+node tests/host-drift.mjs                # 也可 npm run check:host
+node tests/host-drift.mjs --self-test    # 自检：合成完整 / 残缺 bundle，应分别得 exit 0 / 1
+```
+
+它不在 `run.mjs` 里，因为需要一个装好的宿主；宿主不存在时它打印 `SKIP` 并 exit 0（CI 与没装桌面客户端的机器上就是这样）。分级与退出码见 [tests/README.md](tests/README.md)。
 
 本地运行 DOM 相关套件前准备：
 
@@ -286,8 +297,24 @@ cd tests && npm i --no-save jsdom react@18 react-dom@18
 
 ## 兼容性与运行环境声明
 
-- **支持的 DSH 宿主版本**：`>=0.2.0-rc.1 <0.3.0-0`，已精确适配 `0.2.0-rc.1`、`0.2.0-rc.2`（官方桌面客户端当前主流版本）以及核心预览版 `0.2.1-alpha.1` ~ `0.2.1-alpha.4`。
+- **支持的 DSH 宿主版本**：`>=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-0 <0.3.0-0`。这是「预期可用」的范围声明；逐发行版的「已核对」另记在 `package.json` 的 `dsh.compatibility.dshReleases` 里，目前是 `0.2.0-rc.1`、`0.2.0-rc.2` 与核心预览版 `0.2.1-alpha.1` ~ `0.2.1-alpha.4`。矩阵里没有的版本不等于不能用，只等于「没逐版核对过」。
 - **纯前端客户端架构**：插件完全作为 DSH Client 插件运行在 Webview/浏览器端，不绑定 Node.js 底层核心引擎私有改动，在各桌面端及 Web 运行环境下保持一致性。
+
+### 发布前核对宿主兼容性
+
+插件靠宿主渲染出来的 DOM 属性定位每一行消息（见上文「DOM 契约与层级定位」）。宿主重构时这些属性可能悄悄改名：插件不抛错，只会少转发或转发错行，而 `tests/` 的回归测试跑在自己复刻的 DOM 上发现不了。所以声明某个宿主版本兼容之前，先对它跑：
+
+```bash
+node tests/host-drift.mjs    # exit 0 = 没发现硬依赖漂移；1 = 有漂移；宿主不存在时 SKIP + exit 0
+```
+
+它直接读 `/Applications/DeepSeek Harness.app/Contents/Resources/app.asar`（可用 `DSH_HOST_ASAR` 指到别处），打印宿主版本、该版本在 `dshReleases` 里的状态，以及每条契约的 PASS / DRIFT / MISS。
+
+把一个版本写进 `dsh.compatibility.dshReleases` 要同时满足三条，缺一条就只留在范围声明里当「预期可用」：
+
+1. `node tests/host-drift.mjs` 对那个宿主 exit 0（只证明 DOM 契约这条轴没漂）；
+2. 在真实宿主里手工过一遍核心链路：单条转发、多选合并、三种投递模式、用户消息操作行注入、深色 / 浅色主题；
+3. `npm test` 全绿。
 
 ---
 
