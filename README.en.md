@@ -67,7 +67,7 @@ The forward modal includes an interactive editor to tweak or augment content bef
 | `Raw text (no tags)` | Drops the boundary too: puts the upstream body back as-is (tag literals inside it are still neutralized, so the receiver sees plain text) |
 | `Include Source Attribution` | (Optional) Prepends *"[Forwarded from Session 'X' · Model]"*. **Disabled by default** — the opening tag already carries session and speaker. |
 
-- **Custom Template Management**: Click "Manage templates" on the quick action bar to create and manage custom prompt templates (e.g., "Code Review", "Translate to English") with customizable prompt prefixes and context boundary settings. Templates are persisted in client storage and accessible with a single click.
+- **Custom Template Management**: The "Templates" entry on the quick action bar opens a dedicated template dialog where you can create, edit and delete custom prompt templates (e.g., "Code Review", "Translate to English") with customizable prompt prefixes and context boundary settings. Templates are persisted in client storage; click "Use" in the list to apply one, and the list never squeezes the editor no matter how many templates you keep.
 
 #### Quote boundary: `<forwarded_context>`
 

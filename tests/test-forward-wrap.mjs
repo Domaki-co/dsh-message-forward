@@ -231,10 +231,36 @@ api.saveCustomTemplates([customTplWithBoundary]);
 check("保存后能正确读回自定义模板列表", api.loadCustomTemplates().length, 1);
 check("读回的模板数据保持完整", api.loadCustomTemplates()[0].name, "代码评审");
 
-// 弹窗接线验证
-check("弹窗包含自定义模板管理卡片", modalSrc.includes("dsh-mf-tpl-card"), true);
-check("弹窗渲染自定义模板列表 chip", /customTemplates\.map/.test(modalSrc), true);
-check("弹窗提供管理模板按钮", modalSrc.includes('t("modal.manageTemplates")'), true);
+// 弹窗接线验证：自定义模板全部搬进独立弹窗，行内只留一个入口 chip
+check("内联自定义模板卡片已移除", modalSrc.includes("dsh-mf-tpl-card"), false);
+check("快捷加工栏改为模板入口 chip", modalSrc.includes("dsh-mf-chip-custom"), true);
+check("入口 chip 显示模板数量", modalSrc.includes('t("modal.templatesEntryCount"'), true);
+check("模板弹窗作为独立弹窗挂载",
+	src.includes("function MfTemplateModal(") && modalSrc.includes("h(MfTemplateModal, {"), true);
+check("父弹窗在模板弹窗打开时让出焦点陷阱",
+	modalSrc.includes("trapEnabled: !templateManagerOpen"), true);
+check("让位靠 ref 判定，不把 trapEnabled 放进 effect 依赖",
+	src.includes("const trapRef = useRef(trapEnabled)") && src.includes("if (!trapRef.current) return;") &&
+	src.includes("}, [open]);"), true);
+check("模板弹窗跟随转发弹窗一起关闭",
+	modalSrc.includes("open: templateManagerOpen && isOpen"), true);
+check("删除正在编辑的模板时清空表单",
+	modalSrc.includes("if (editingId === tpl.id) resetForm();"), true);
+
+// 删除不可撤销：第一次点击只把该行切进待确认态（行内出现「确认删除 + 取消」），再点确认才真删
+check("删除模板需要二次确认",
+	modalSrc.includes("const [confirmDeleteId, setConfirmDeleteId] = useState(null);") &&
+	modalSrc.includes('t("modal.deleteConfirm")') &&
+	modalSrc.includes('onClick: () => setConfirmDeleteId(null) }, t("modal.cancel"))'), true);
+check("初次点击走 requestDelete，删除入口不再直连 handleDelete",
+	modalSrc.includes("onClick: () => requestDelete(tpl) }") &&
+	modalSrc.includes("setConfirmDeleteId(tpl.id);") &&
+	!modalSrc.includes('onClick: () => handleDelete(tpl) }, t("modal.deleteTemplate"))'), true);
+check("待确认态在关闭与开始编辑时被清除",
+	/setEditingId\(null\);\n\t+setConfirmDeleteId\(null\);/.test(modalSrc) &&
+	/setConfirmDeleteId\(null\);\n\t+setEditingId\(tpl\.id\);/.test(modalSrc), true);
+check("中英文都含确认删除词条",
+	api.MF_ZH["modal.deleteConfirm"] === "确认删除" && api.MF_EN["modal.deleteConfirm"] === "Confirm delete", true);
 check("缩略图包裹在 thumb-wrap 内", modalSrc.includes("dsh-mf-thumb-wrap"), true);
 
 // 缩略图单任务原则验证：只保留删除/排除按钮，移除干扰复制与下载
@@ -260,8 +286,13 @@ check("词表包含模板名称超长提示",
 check("词表包含模板同名校验提示",
 	api.MF_ZH["notify.templateNameDuplicate"] === "已存在同名模板" &&
 	api.MF_EN["notify.templateNameDuplicate"] === "A template with this name already exists", true);
-check("弹窗重新打开时重置模板管理状态",
-	modalSrc.includes("setTemplateManagerOpen(false)") && modalSrc.includes('setNewTplName("")'), true);
+check("模板弹窗支持编辑已有模板",
+	modalSrc.includes('t("modal.editTemplate")') && modalSrc.includes('t("modal.saveTemplateUpdate")') &&
+	modalSrc.includes("item.id === editingId ? { ...item, ...fields } : item"), true);
+check("模板弹窗关闭时重置表单态",
+	modalSrc.includes("if (!open) resetForm();"), true);
+check("套用自定义模板后关闭模板弹窗",
+	modalSrc.includes("setTemplateManagerOpen(false)") && modalSrc.includes('t("notify.templateApplied"'), true);
 
 // 图片右键快捷菜单能力验证
 check("右键快捷菜单组件存在", src.includes("function ImageContextMenu()"), true);
